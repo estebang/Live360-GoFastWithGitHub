@@ -367,8 +367,8 @@
                     <span class="logo-text">TailspinToys</span>
                 </a>
                 <nav class="nav">
-                    <a href="/" class="active">Campaigns</a>
-                    <a href="#about">About</a>
+                    <a href="/">Campaigns</a>
+                    <a href="/About">About</a>
                     <a href="#contact">Contact</a>
                 </nav>
             </div>
@@ -397,6 +397,17 @@
     <script>
         // Add some interactive effects
         document.addEventListener('DOMContentLoaded', function() {
+            // Set active navigation state
+            const currentPath = window.location.pathname;
+            const navLinks = document.querySelectorAll('.nav a');
+            navLinks.forEach(link => {
+                link.classList.remove('active');
+                if ((currentPath === '/' && link.getAttribute('href') === '/') ||
+                    (currentPath !== '/' && link.getAttribute('href') === currentPath)) {
+                    link.classList.add('active');
+                }
+            });
+
             // Animate progress bars on page load
             const progressBars = document.querySelectorAll('.progress-fill');
             progressBars.forEach(bar => {
@@ -416,6 +427,17 @@
                     setTimeout(() => {
                         this.style.transform = '';
                     }, 150);
+                });
+            });
+
+            // Add hover effects to buttons
+            const buttons = document.querySelectorAll('button, .nav a');
+            buttons.forEach(button => {
+                button.addEventListener('mouseenter', function() {
+                    this.style.transform = 'translateY(-2px)';
+                });
+                button.addEventListener('mouseleave', function() {
+                    this.style.transform = '';
                 });
             });
         });

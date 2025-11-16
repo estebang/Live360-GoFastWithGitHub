@@ -1,0 +1,277 @@
+@page
+@{
+    ViewData["Title"] = "About TailspinToys";
+    Layout = "_Layout";
+}
+
+<section class="hero">
+    <h1><i class="fas fa-info-circle"></i> About TailspinToys</h1>
+    <p>Empowering innovation through community-driven fundraising and modern web development</p>
+</section>
+
+<div style="display: grid; gap: 2rem; margin-bottom: 2rem;">
+    <!-- Main About Section -->
+    <div style="background: var(--card-background); border-radius: 20px; padding: 3rem; box-shadow: var(--shadow); position: relative; overflow: hidden;">
+        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 6px; background: linear-gradient(90deg, var(--primary-color), var(--secondary-color), var(--accent-color));"></div>
+        
+        <div style="display: grid; grid-template-columns: 1fr auto; gap: 2rem; align-items: start; margin-bottom: 2rem;">
+            <div>
+                <h2 style="font-size: 2.5rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1rem;">
+                    What is TailspinToys?
+                </h2>
+                <p style="font-size: 1.2rem; line-height: 1.7; color: var(--text-secondary); margin-bottom: 2rem;">
+                    TailspinToys is a modern fundraising campaign platform designed to showcase the power of contemporary web development technologies. 
+                    Built specifically for the <strong>Live360 Orlando 2025 Conference</strong>, this application demonstrates how developers can 
+                    leverage GitHub Copilot, ASP.NET Core, and modern UI/UX principles to create compelling user experiences.
+                </p>
+                
+                <div style="background: linear-gradient(135deg, #f0f9ff, #e0f2fe); padding: 2rem; border-radius: 16px; border-left: 4px solid var(--primary-color); margin-bottom: 2rem;">
+                    <h3 style="color: var(--primary-color); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <i class="fas fa-lightbulb"></i>
+                        Mission Statement
+                    </h3>
+                    <p style="color: var(--text-primary); font-size: 1.1rem; line-height: 1.6; margin: 0;">
+                        To demonstrate how the GitHub platform accelerates software delivery from idea to production using GitHub Actions for CI/CD, 
+                        GitHub Advanced Security (GHAS) for secure development, and GitHub Copilot for AI-powered coding—enabling teams to move 
+                        quickly and safely to the cloud.
+                    </p>
+                </div>
+            </div>
+
+            <div style="text-align: center; min-width: 200px;">
+                <div style="background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: white; padding: 2rem; border-radius: 20px; margin-bottom: 1rem;">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;"><i class="fas fa-rocket"></i></div>
+                    <div style="font-size: 1.2rem; font-weight: 600;">Live360</div>
+                    <div style="font-size: 1rem; opacity: 0.9;">Orlando 2025</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Technology Stack -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem;">
+        <div style="background: var(--card-background); padding: 2rem; border-radius: 16px; box-shadow: var(--shadow);">
+            <h3 style="margin-bottom: 1.5rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+                <div style="background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: white; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-code"></i>
+                </div>
+                Technology Stack
+            </h3>
+            <div style="space-y: 1rem;">
+                <div style="display: flex; align-items: center; gap: 1rem; padding: 0.75rem 0; border-bottom: 1px solid var(--border-color);">
+                    <div style="background: #512bd4; color: white; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 600;">.NET</div>
+                    <div>
+                        <div style="font-weight: 600; color: var(--text-primary);">ASP.NET Core 9.0</div>
+                        <div style="font-size: 0.875rem; color: var(--text-secondary);">Modern web framework</div>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 1rem; padding: 0.75rem 0; border-bottom: 1px solid var(--border-color);">
+                    <div style="background: #0078d4; color: white; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 600;">EF</div>
+                    <div>
+                        <div style="font-weight: 600; color: var(--text-primary);">Entity Framework Core</div>
+                        <div style="font-size: 0.875rem; color: var(--text-secondary);">Data access layer</div>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 1rem; padding: 0.75rem 0; border-bottom: 1px solid var(--border-color);">
+                    <div style="background: #f59e0b; color: white; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 600;">UI</div>
+                    <div>
+                        <div style="font-weight: 600; color: var(--text-primary);">Razor Pages</div>
+                        <div style="font-size: 0.875rem; color: var(--text-secondary);">Server-side rendering</div>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 1rem; padding: 0.75rem 0; border-bottom: 1px solid var(--border-color);">
+                    <div style="background: #10b981; color: white; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 600;">AI</div>
+                    <div>
+                        <div style="font-weight: 600; color: var(--text-primary);">GitHub Copilot</div>
+                        <div style="font-size: 0.875rem; color: var(--text-secondary);">AI-powered development</div>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 1rem; padding: 0.75rem 0; border-bottom: 1px solid var(--border-color);">
+                    <div style="background: #24292f; color: white; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 600;"><i class="fas fa-rocket" style="font-size: 0.7rem;"></i></div>
+                    <div>
+                        <div style="font-weight: 600; color: var(--text-primary);">GitHub Actions</div>
+                        <div style="font-size: 0.875rem; color: var(--text-secondary);">CI/CD automation</div>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 1rem; padding: 0.75rem 0;">
+                    <div style="background: #d73a49; color: white; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 600;"><i class="fas fa-shield-alt" style="font-size: 0.7rem;"></i></div>
+                    <div>
+                        <div style="font-weight: 600; color: var(--text-primary);">GitHub Advanced Security</div>
+                        <div style="font-size: 0.875rem; color: var(--text-secondary);">Secure development</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="background: var(--card-background); padding: 2rem; border-radius: 16px; box-shadow: var(--shadow);">
+            <h3 style="margin-bottom: 1.5rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+                <div style="background: linear-gradient(135deg, var(--accent-color), var(--primary-color)); color: white; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-star"></i>
+                </div>
+                Key Features
+            </h3>
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                <div style="display: flex; align-items: start; gap: 0.75rem;">
+                    <div style="background: var(--primary-color); color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; margin-top: 0.125rem;">
+                        <i class="fas fa-check"></i>
+                    </div>
+                    <div>
+                        <div style="font-weight: 600; color: var(--text-primary);">Campaign Management</div>
+                        <div style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.4;">Create and track fundraising campaigns with real-time progress</div>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: start; gap: 0.75rem;">
+                    <div style="background: var(--primary-color); color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; margin-top: 0.125rem;">
+                        <i class="fas fa-check"></i>
+                    </div>
+                    <div>
+                        <div style="font-weight: 600; color: var(--text-primary);">Modern UI/UX</div>
+                        <div style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.4;">Responsive design with smooth animations and professional styling</div>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: start; gap: 0.75rem;">
+                    <div style="background: var(--primary-color); color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; margin-top: 0.125rem;">
+                        <i class="fas fa-check"></i>
+                    </div>
+                    <div>
+                        <div style="font-weight: 600; color: var(--text-primary);">Progress Visualization</div>
+                        <div style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.4;">Interactive progress bars with animated completion indicators</div>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: start; gap: 0.75rem;">
+                    <div style="background: var(--primary-color); color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; margin-top: 0.125rem;">
+                        <i class="fas fa-check"></i>
+                    </div>
+                    <div>
+                        <div style="font-weight: 600; color: var(--text-primary);">CI/CD Pipeline</div>
+                        <div style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.4;">Automated deployment with GitHub Actions</div>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: start; gap: 0.75rem;">
+                    <div style="background: var(--primary-color); color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; margin-top: 0.125rem;">
+                        <i class="fas fa-check"></i>
+                    </div>
+                    <div>
+                        <div style="font-weight: 600; color: var(--text-primary);">Security Integration</div>
+                        <div style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.4;">GitHub Advanced Security for secure development</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Conference Information -->
+    <div style="background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: white; padding: 3rem; border-radius: 20px; text-align: center;">
+        <div style="font-size: 4rem; margin-bottom: 1rem;">🚀</div>
+        <h2 style="font-size: 2rem; margin-bottom: 1rem; font-weight: 700;">Built for Live360 Orlando 2025</h2>
+        <p style="font-size: 1.2rem; opacity: 0.9; max-width: 800px; margin: 0 auto 2rem;">
+            This application demonstrates a complete software delivery pipeline using GitHub's platform—from AI-assisted development 
+            with Copilot to automated CI/CD with GitHub Actions, secure coding with GitHub Advanced Security, and seamless deployment to Azure. 
+            See how to move quickly and safely from idea to production.
+        </p>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 2rem; margin: 2rem 0;">
+            <div>
+                <div style="font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem;">Nov 16-21</div>
+                <div style="opacity: 0.9;">Conference Dates</div>
+            </div>
+            <div>
+                <div style="font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem;">Orlando</div>
+                <div style="opacity: 0.9;">Location</div>
+            </div>
+            <div>
+                <div style="font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem;">VSW04</div>
+                <div style="opacity: 0.9;">Session Code</div>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-top: 2rem;">
+            <a href="https://live360events.com/events/orlando-2025/sessions/wednesday/vsw04-github.aspx" target="_blank" 
+               style="background: white; color: var(--primary-color); padding: 1rem 2rem; border-radius: 10px; text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 0.5rem; transition: transform 0.2s ease;">
+                <i class="fas fa-external-link-alt"></i>
+                View Session Details
+            </a>
+            <a href="/" style="background: rgba(255, 255, 255, 0.2); color: white; padding: 1rem 2rem; border-radius: 10px; text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 0.5rem; border: 2px solid rgba(255, 255, 255, 0.3); transition: all 0.2s ease;">
+                <i class="fas fa-arrow-left"></i>
+                Back to Campaigns
+            </a>
+        </div>
+    </div>
+
+    <!-- Development Insights -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 2rem;">
+        <div style="background: var(--card-background); padding: 2rem; border-radius: 16px; box-shadow: var(--shadow);">
+            <h3 style="margin-bottom: 1.5rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fas fa-cogs" style="color: var(--accent-color);"></i>
+                Complete DevOps Pipeline
+            </h3>
+            <p style="color: var(--text-secondary); margin-bottom: 1.5rem; line-height: 1.6;">
+                This application showcases the full GitHub platform workflow: AI-assisted development with Copilot, 
+                automated CI/CD with GitHub Actions, security scanning with GHAS, and deployment to Azure—demonstrating 
+                how to build a secure, automated software delivery pipeline.
+            </p>
+            <div style="display: grid; gap: 1rem;">
+                <div style="background: #f0fdf4; padding: 1rem; border-radius: 8px; border-left: 4px solid var(--accent-color);">
+                    <div style="font-weight: 600; color: var(--accent-color); margin-bottom: 0.5rem;">
+                        <i class="fas fa-robot"></i> GitHub Copilot
+                    </div>
+                    <ul style="color: var(--text-secondary); font-size: 0.9rem; margin: 0; padding-left: 1rem;">
+                        <li>AI-assisted code generation</li>
+                        <li>Automated testing creation</li>
+                    </ul>
+                </div>
+                <div style="background: #fef3c7; padding: 1rem; border-radius: 8px; border-left: 4px solid var(--secondary-color);">
+                    <div style="font-weight: 600; color: #d97706; margin-bottom: 0.5rem;">
+                        <i class="fas fa-rocket"></i> GitHub Actions CI/CD
+                    </div>
+                    <ul style="color: var(--text-secondary); font-size: 0.9rem; margin: 0; padding-left: 1rem;">
+                        <li>Automated build and test</li>
+                        <li>Azure deployment pipeline</li>
+                    </ul>
+                </div>
+                <div style="background: #fef2f2; padding: 1rem; border-radius: 8px; border-left: 4px solid #dc2626;">
+                    <div style="font-weight: 600; color: #dc2626; margin-bottom: 0.5rem;">
+                        <i class="fas fa-shield-alt"></i> GitHub Advanced Security
+                    </div>
+                    <ul style="color: var(--text-secondary); font-size: 0.9rem; margin: 0; padding-left: 1rem;">
+                        <li>Code scanning and vulnerability detection</li>
+                        <li>Dependency security analysis</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div style="background: var(--card-background); padding: 2rem; border-radius: 16px; box-shadow: var(--shadow);">
+            <h3 style="margin-bottom: 1.5rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fas fa-graduation-cap" style="color: var(--secondary-color);"></i>
+                Learning Objectives
+            </h3>
+            <p style="color: var(--text-secondary); margin-bottom: 1.5rem; line-height: 1.6;">
+                Attendees will learn how to build a complete automated software delivery lifecycle using GitHub's integrated platform, 
+                from AI-assisted development to secure cloud deployment.
+            </p>
+            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <div style="background: var(--secondary-color); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem;">1</div>
+                    <span style="color: var(--text-primary); font-size: 0.9rem;">Define CI/CD processes with GitHub Actions</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <div style="background: var(--secondary-color); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem;">2</div>
+                    <span style="color: var(--text-primary); font-size: 0.9rem;">Create deployment pipelines to Azure</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <div style="background: var(--secondary-color); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem;">3</div>
+                    <span style="color: var(--text-primary); font-size: 0.9rem;">Integrate GitHub Advanced Security</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <div style="background: var(--secondary-color); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem;">4</div>
+                    <span style="color: var(--text-primary); font-size: 0.9rem;">Leverage Pull Requests and Copilot collaboration</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <div style="background: var(--secondary-color); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem;">5</div>
+                    <span style="color: var(--text-primary); font-size: 0.9rem;">Secure software development supply chain</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
