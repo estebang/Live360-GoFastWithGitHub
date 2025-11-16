@@ -2,14 +2,102 @@
 @using TailspinToys.Web.Data
 @using TailspinToys.Web.Models
 @inject TailspinContext Db
-
-<h1>Tailspin Toys Campaigns</h1>
-
-<ul>
-@foreach (var c in Db.Campaigns.ToList())
-{
-    <li>
-        <a href="/Campaign?id=@c.Id">@c.Name</a> - @c.CurrentAmount / @c.GoalAmount
-    </li>
+@{
+    ViewData["Title"] = "Campaign Dashboard";
+    Layout = "_Layout";
 }
-</ul>
+
+<section class="hero">
+    <h1><i class="fas fa-rocket"></i> Campaign Dashboard</h1>
+    <p>Empowering innovation through community-driven fundraising campaigns. Track progress, celebrate achievements, and drive success together.</p>
+</section>
+
+<div class="campaigns-grid">
+@foreach (var campaign in Db.Campaigns.ToList())
+{
+    var progressPercentage = campaign.GoalAmount > 0 ? (int)((campaign.CurrentAmount / campaign.GoalAmount) * 100) : 0;
+    var progressWidth = Math.Min(progressPercentage, 100);
+    var isCompleted = campaign.CurrentAmount >= campaign.GoalAmount;
+    
+    <a href="/Campaign?id=@campaign.Id" class="campaign-card">
+        <div class="campaign-header">
+            <div>
+                <h2 class="campaign-title">@campaign.Name</h2>
+                @if (isCompleted)
+                {
+                    <span style="color: var(--success-color); font-weight: 600;"><i class="fas fa-check-circle"></i> Completed</span>
+                }
+                else
+                {
+                    <span style="color: var(--secondary-color); font-weight: 600;"><i class="fas fa-clock"></i> Active</span>
+                }
+            </div>
+            <div class="campaign-icon">
+                @if (isCompleted)
+                {
+                    <i class="fas fa-trophy"></i>
+                }
+                else
+                {
+                    <i class="fas fa-target"></i>
+                }
+            </div>
+        </div>
+
+        <p class="campaign-description">
+            @if (!string.IsNullOrEmpty(campaign.Description))
+            {
+                @campaign.Description
+            }
+            else
+            {
+                @("Join us in making a difference! Every contribution brings us closer to our goal and helps create positive impact in our community.")
+            }
+        </p>
+
+        <div class="progress-container">
+            <div class="progress-header">
+                <span class="progress-amount">$@campaign.CurrentAmount.ToString("N0")</span>
+                <span class="progress-goal">of $@campaign.GoalAmount.ToString("N0")</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: @progressWidth%"></div>
+            </div>
+            <div class="progress-percentage">@progressPercentage% Complete</div>
+        </div>
+
+        <div class="campaign-stats">
+            <div class="stat">
+                <div class="stat-value">$@((campaign.GoalAmount - campaign.CurrentAmount).ToString("N0"))</div>
+                <div class="stat-label">Remaining</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">@progressPercentage%</div>
+                <div class="stat-label">Progress</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">
+                    @if (isCompleted)
+                    {
+                        <i class="fas fa-medal" style="color: var(--secondary-color);"></i>
+                    }
+                    else
+                    {
+                        <i class="fas fa-arrow-trend-up" style="color: var(--accent-color);"></i>
+                    }
+                </div>
+                <div class="stat-label">Status</div>
+            </div>
+        </div>
+    </a>
+}
+</div>
+
+@if (!Db.Campaigns.Any())
+{
+    <div style="text-align: center; padding: 4rem; color: white;">
+        <i class="fas fa-plus-circle" style="font-size: 4rem; margin-bottom: 1rem; opacity: 0.7;"></i>
+        <h2 style="margin-bottom: 1rem;">No Campaigns Yet</h2>
+        <p style="opacity: 0.8;">Create your first campaign to get started with fundraising!</p>
+    </div>
+}

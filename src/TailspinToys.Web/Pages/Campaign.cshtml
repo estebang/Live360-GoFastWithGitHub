@@ -1,7 +1,213 @@
 @page
 @model TailspinToys.Web.Pages.CampaignModel
+@{
+    ViewData["Title"] = Model.Campaign?.Name ?? "Campaign Details";
+    Layout = "_Layout";
+    
+    var campaign = Model.Campaign;
+    var progressPercentage = 0;
+    var progressWidth = 0;
+    var isCompleted = false;
+    var remaining = 0m;
+    
+    if (campaign != null)
+    {
+        progressPercentage = campaign.GoalAmount > 0 ? (int)((campaign.CurrentAmount / campaign.GoalAmount) * 100) : 0;
+        progressWidth = Math.Min(progressPercentage, 100);
+        isCompleted = campaign.CurrentAmount >= campaign.GoalAmount;
+        remaining = campaign.GoalAmount - campaign.CurrentAmount;
+    }
+}
 
-<h1>@Model.Campaign?.Name</h1>
-<p>@Model.Campaign?.Description</p>
-<p>Current: @Model.Campaign?.CurrentAmount</p>
-<p>Goal: @Model.Campaign?.GoalAmount</p>
+@if (campaign != null)
+{
+    <div style="margin-bottom: 2rem;">
+        <a href="/" style="color: white; text-decoration: none; display: inline-flex; align-items: center; gap: 0.5rem; opacity: 0.9;">
+            <i class="fas fa-arrow-left"></i>
+            <span>Back to Campaigns</span>
+        </a>
+    </div>
+
+    <div style="background: var(--card-background); border-radius: 20px; padding: 3rem; box-shadow: var(--shadow); margin-bottom: 2rem; position: relative; overflow: hidden;">
+        <!-- Decorative gradient bar -->
+        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 6px; background: linear-gradient(90deg, var(--primary-color), var(--secondary-color), var(--accent-color));"></div>
+        
+        <div style="display: grid; grid-template-columns: 1fr auto; gap: 2rem; align-items: start; margin-bottom: 2rem;">
+            <div>
+                <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                    <div style="background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: white; width: 64px; height: 64px; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">
+                        @if (isCompleted)
+                        {
+                            <i class="fas fa-trophy"></i>
+                        }
+                        else
+                        {
+                            <i class="fas fa-target"></i>
+                        }
+                    </div>
+                    <div>
+                        <h1 style="font-size: 2.5rem; font-weight: 700; color: var(--text-primary); margin: 0;">@campaign.Name</h1>
+                        @if (isCompleted)
+                        {
+                            <div style="color: var(--success-color); font-weight: 600; margin-top: 0.5rem;">
+                                <i class="fas fa-check-circle"></i> Campaign Completed!
+                            </div>
+                        }
+                        else
+                        {
+                            <div style="color: var(--secondary-color); font-weight: 600; margin-top: 0.5rem;">
+                                <i class="fas fa-clock"></i> Active Campaign
+                            </div>
+                        }
+                    </div>
+                </div>
+                
+                <p style="font-size: 1.1rem; line-height: 1.7; color: var(--text-secondary); margin-bottom: 2rem;">
+                    @if (!string.IsNullOrEmpty(campaign.Description))
+                    {
+                        @campaign.Description
+                    }
+                    else
+                    {
+                        @("This campaign represents our commitment to innovation and community impact. Every contribution makes a meaningful difference in achieving our shared goals and creating positive change.")
+                    }
+                </p>
+            </div>
+
+            <div style="text-align: right; min-width: 200px;">
+                <div style="background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: white; padding: 1.5rem; border-radius: 16px; margin-bottom: 1rem;">
+                    <div style="font-size: 2.5rem; font-weight: 700; margin-bottom: 0.5rem;">@progressPercentage%</div>
+                    <div style="opacity: 0.9;">Complete</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Progress Section -->
+        <div style="background: #f8fafc; padding: 2rem; border-radius: 16px; margin-bottom: 2rem;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 2rem; margin-bottom: 2rem;">
+                <div style="text-align: center;">
+                    <div style="font-size: 2rem; font-weight: 700; color: var(--primary-color); margin-bottom: 0.5rem;">
+                        $@campaign.CurrentAmount.ToString("N0")
+                    </div>
+                    <div style="color: var(--text-secondary); font-weight: 500;">Current Amount</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 2rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem;">
+                        $@campaign.GoalAmount.ToString("N0")
+                    </div>
+                    <div style="color: var(--text-secondary); font-weight: 500;">Goal Amount</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 2rem; font-weight: 700; color: @(remaining > 0 ? "var(--secondary-color)" : "var(--success-color)"); margin-bottom: 0.5rem;">
+                        @if (remaining > 0)
+                        {
+                            <text>$@remaining.ToString("N0")</text>
+                        }
+                        else
+                        {
+                            <i class="fas fa-medal"></i>
+                        }
+                    </div>
+                    <div style="color: var(--text-secondary); font-weight: 500;">
+                        @(remaining > 0 ? "Remaining" : "Achieved!")
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 1rem;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                    <span style="font-weight: 600;">Progress</span>
+                    <span style="font-weight: 600; color: var(--primary-color);">@progressPercentage%</span>
+                </div>
+                <div style="width: 100%; height: 12px; background: #e5e7eb; border-radius: 6px; overflow: hidden;">
+                    <div style="height: 100%; background: linear-gradient(90deg, var(--primary-color), var(--accent-color)); border-radius: 6px; transition: width 0.8s ease; width: @progressWidth%; position: relative;">
+                        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent); animation: shimmer 2s infinite;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Section -->
+        @if (!isCompleted)
+        {
+            <div style="background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); padding: 2rem; border-radius: 16px; color: white; text-align: center;">
+                <h3 style="margin-bottom: 1rem; font-size: 1.5rem;">Help Us Reach Our Goal!</h3>
+                <p style="margin-bottom: 2rem; opacity: 0.9;">Every contribution counts towards making this campaign a success. Join our community of supporters!</p>
+                <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+                    <button style="background: white; color: var(--primary-color); border: none; padding: 0.75rem 2rem; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
+                        <i class="fas fa-heart"></i> Contribute Now
+                    </button>
+                    <button style="background: rgba(255, 255, 255, 0.2); color: white; border: 2px solid white; padding: 0.75rem 2rem; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
+                        <i class="fas fa-share"></i> Share Campaign
+                    </button>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div style="background: linear-gradient(135deg, var(--success-color), var(--accent-color)); padding: 2rem; border-radius: 16px; color: white; text-align: center;">
+                <div style="font-size: 4rem; margin-bottom: 1rem;">🎉</div>
+                <h3 style="margin-bottom: 1rem; font-size: 1.5rem;">Campaign Successfully Completed!</h3>
+                <p style="margin-bottom: 2rem; opacity: 0.9;">Thank you to all our supporters who made this campaign a tremendous success!</p>
+                <button style="background: white; color: var(--success-color); border: none; padding: 0.75rem 2rem; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
+                    <i class="fas fa-share"></i> Share Success Story
+                </button>
+            </div>
+        }
+    </div>
+
+    <!-- Additional Campaign Info -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem;">
+        <div style="background: var(--card-background); padding: 2rem; border-radius: 16px; box-shadow: var(--shadow);">
+            <h3 style="margin-bottom: 1rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fas fa-chart-line" style="color: var(--primary-color);"></i>
+                Campaign Analytics
+            </h3>
+            <div style="space-y: 1rem;">
+                <div style="display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid var(--border-color);">
+                    <span>Completion Rate:</span>
+                    <strong style="color: var(--primary-color);">@progressPercentage%</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid var(--border-color);">
+                    <span>Status:</span>
+                    <strong style="color: @(isCompleted ? "var(--success-color)" : "var(--secondary-color)");">
+                        @(isCompleted ? "Completed" : "Active")
+                    </strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 0.5rem 0;">
+                    <span>Campaign ID:</span>
+                    <strong style="color: var(--text-secondary);">#@campaign.Id.ToString("D4")</strong>
+                </div>
+            </div>
+        </div>
+
+        <div style="background: var(--card-background); padding: 2rem; border-radius: 16px; box-shadow: var(--shadow);">
+            <h3 style="margin-bottom: 1rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fas fa-users" style="color: var(--accent-color);"></i>
+                Community Impact
+            </h3>
+            <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">
+                This campaign is part of our Live360 Orlando 2025 demonstration, showcasing modern web development with GitHub Copilot and ASP.NET Core.
+            </p>
+            <div style="background: #f0f9ff; padding: 1rem; border-radius: 8px; border-left: 4px solid var(--primary-color);">
+                <div style="font-weight: 600; color: var(--primary-color); margin-bottom: 0.5rem;">
+                    <i class="fas fa-info-circle"></i> Live360 Conference Demo
+                </div>
+                <div style="color: var(--text-secondary); font-size: 0.9rem;">
+                    Built with modern technologies and AI-powered development tools
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div style="text-align: center; padding: 4rem; color: white;">
+        <i class="fas fa-exclamation-triangle" style="font-size: 4rem; margin-bottom: 1rem; opacity: 0.7;"></i>
+        <h2 style="margin-bottom: 1rem;">Campaign Not Found</h2>
+        <p style="opacity: 0.8; margin-bottom: 2rem;">The requested campaign could not be found.</p>
+        <a href="/" style="background: white; color: var(--primary-color); padding: 0.75rem 2rem; border-radius: 8px; text-decoration: none; font-weight: 600;">
+            <i class="fas fa-arrow-left"></i> Back to Campaigns
+        </a>
+    </div>
+}
