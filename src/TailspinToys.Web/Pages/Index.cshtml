@@ -1,0 +1,15 @@
+@page
+@using TailspinToys.Web.Data
+@using TailspinToys.Web.Models
+@inject TailspinContext Db
+
+<h1>Tailspin Toys Campaigns</h1>
+
+<ul>
+@foreach (var c in Db.Campaigns.ToList())
+{
+    <li>
+        <a href="/Campaign?id=@c.Id">@c.Name</a> - @c.CurrentAmount / @c.GoalAmount
+    </li>
+}
+</ul>
