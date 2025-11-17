@@ -193,11 +193,34 @@ jobs:
           echo "**Emergency Mode:** ${{ needs.validate-hotfix.outputs.emergency-mode }}" >> $GITHUB_STEP_SUMMARY
           echo "**Rollback Plan:** ${{ inputs.rollback_plan || 'Standard rollback procedure' }}" >> $GITHUB_STEP_SUMMARY
       
+      - name: '🎯 Determine target app name'
+        id: app-config
+        run: |
+          TARGET_ENV="${{ needs.validate-hotfix.outputs.target-env }}"
+          
+          case "$TARGET_ENV" in
+            "development")
+              APP_NAME="${{ vars.AZURE_WEBAPP_NAME_DEV || 'tailspintoys-dev' }}"
+              ;;
+            "staging")  
+              APP_NAME="${{ vars.AZURE_WEBAPP_NAME_STAGING || 'tailspintoys-staging' }}"
+              ;;
+            "production")
+              APP_NAME="${{ vars.AZURE_WEBAPP_NAME_PROD || 'tailspintoys-prod' }}"
+              ;;
+            *)
+              APP_NAME="${{ vars.AZURE_WEBAPP_NAME_DEV || 'tailspintoys-dev' }}"
+              ;;
+          esac
+          
+          echo "app-name=$APP_NAME" >> $GITHUB_OUTPUT
+          echo "🎯 Target app: $APP_NAME (environment: $TARGET_ENV)"
+      
       - name: '🚀 Deploy hotfix'
         id: deploy
         uses: ./.github/actions/deploy-azure
         with:
-          app-name: ${{ vars[format('AZURE_WEBAPP_NAME_{0}', upper(needs.validate-hotfix.outputs.target-env))] }}
+          app-name: ${{ steps.app-config.outputs.app-name }}
           package-path: './publish'
           azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
           azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
