@@ -1,0 +1,137 @@
+name: 'Build .NET Application'
+description: 'Reusable composite action to build, test, and publish .NET applications'
+author: 'TailspinToys DevOps Team'
+
+inputs:
+  dotnet-version:
+    description: 'The .NET version to use'
+    required: false
+    default: '9.0.x'
+  
+  configuration:
+    description: 'Build configuration (Release/Debug)'
+    required: false
+    default: 'Release'
+  
+  project-path:
+    description: 'Path to the main project file'
+    required: false
+    default: 'src/TailspinToys.Web/TailspinToys.Web.csproj'
+  
+  run-tests:
+    description: 'Whether to run tests'
+    required: false
+    default: 'true'
+  
+  collect-coverage:
+    description: 'Whether to collect code coverage'
+    required: false
+    default: 'true'
+  
+  publish-app:
+    description: 'Whether to publish the application'
+    required: false
+    default: 'false'
+  
+  publish-path:
+    description: 'Output path for published application'
+    required: false
+    default: './publish'
+
+outputs:
+  test-outcome:
+    description: 'Result of test execution'
+    value: ${{ steps.test.outputs.outcome }}
+  
+  publish-path:
+    description: 'Path where application was published'
+    value: ${{ inputs.publish-path }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: 'Setup .NET SDK'
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ inputs.dotnet-version }}
+    
+    - name: 'Cache NuGet packages'
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.nuget/packages
+          ~/.local/share/NuGet/v3-cache
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.targets') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+    
+    - name: 'Display .NET version'
+      shell: bash
+      run: dotnet --version
+    
+    - name: 'Restore NuGet dependencies'
+      shell: bash
+      run: |
+        echo "::group::Restoring NuGet packages"
+        dotnet restore --verbosity minimal
+        echo "::endgroup::"
+    
+    - name: 'Build solution'
+      shell: bash
+      run: |
+        echo "::group::Building solution in ${{ inputs.configuration }} mode"
+        dotnet build --no-restore --configuration ${{ inputs.configuration }} --verbosity minimal
+        echo "::endgroup::"
+    
+    - name: 'Run unit tests'
+      id: test
+      if: inputs.run-tests == 'true'
+      shell: bash
+      run: |
+        echo "::group::Running unit tests"
+        if [ "${{ inputs.collect-coverage }}" == "true" ]; then
+          dotnet test --no-build --configuration ${{ inputs.configuration }} \
+            --verbosity normal \
+            --collect:"XPlat Code Coverage" \
+            --results-directory ./TestResults \
+            --logger "trx;LogFileName=test-results.trx"
+        else
+          dotnet test --no-build --configuration ${{ inputs.configuration }} \
+            --verbosity normal \
+            --results-directory ./TestResults \
+            --logger "trx;LogFileName=test-results.trx"
+        fi
+        echo "::endgroup::"
+    
+    - name: 'Publish application'
+      if: inputs.publish-app == 'true'
+      shell: bash
+      run: |
+        echo "::group::Publishing application"
+        dotnet publish ${{ inputs.project-path }} \
+          --configuration ${{ inputs.configuration }} \
+          --no-restore \
+          --no-build \
+          --output ${{ inputs.publish-path }} \
+          --verbosity minimal
+        echo "::endgroup::"
+    
+    - name: 'Upload test results'
+      uses: actions/upload-artifact@v4
+      if: inputs.run-tests == 'true' && always()
+      with:
+        name: test-results-${{ runner.os }}
+        path: |
+          ./TestResults/**/*.trx
+          ./TestResults/**/*.xml
+        retention-days: 30
+    
+    - name: 'Upload code coverage'
+      uses: actions/upload-artifact@v4
+      if: inputs.collect-coverage == 'true' && always()
+      with:
+        name: coverage-reports-${{ runner.os }}
+        path: |
+          ./TestResults/**/coverage.cobertura.xml
+          ./TestResults/**/coverage.xml
+        retention-days: 30

@@ -1,0 +1,242 @@
+# 🚨 Hotfix Deployment Workflow
+#
+# This workflow handles emergency deployments for critical bug fixes.
+# It provides a fast path to production with minimal gates while
+# maintaining audit trail and rollback capabilities.
+#
+# Triggered by:
+# - Creating releases with 'hotfix' prefix
+# - Manual dispatch for emergency deployments
+# - Push to hotfix/* branches
+
+name: '🚨 Hotfix Deployment'
+
+on:
+  # 📦 Release-based trigger
+  release:
+    types: [published]
+    
+  # 🔄 Branch-based trigger  
+  push:
+    branches:
+      - 'hotfix/**'
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      
+  # 🎮 Manual emergency trigger
+  workflow_dispatch:
+    inputs:
+      target_environment:
+        description: 'Target environment for hotfix'
+        required: true
+        type: choice
+        options:
+          - development
+          - staging  
+          - production
+        default: 'production'
+      
+      skip_tests:
+        description: 'Skip tests (emergency only!)'
+        required: false
+        default: false
+        type: boolean
+      
+      force_deploy:
+        description: 'Force deployment even if quality gates fail'
+        required: false
+        default: false
+        type: boolean
+      
+      rollback_plan:
+        description: 'Describe the rollback plan'
+        required: true
+        default: 'Rollback to previous release if deployment fails'
+
+permissions:
+  contents: read
+  id-token: write
+  actions: read
+  deployments: write
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  BUILD_CONFIGURATION: 'Release'
+
+jobs:
+  # 🚨 Hotfix validation
+  validate-hotfix:
+    name: '🚨 Validate Hotfix Request'
+    runs-on: ubuntu-latest
+    
+    outputs:
+      is-hotfix: ${{ steps.check.outputs.is-hotfix }}
+      target-env: ${{ steps.check.outputs.target-env }}
+      emergency-mode: ${{ steps.check.outputs.emergency-mode }}
+    
+    steps:
+      - name: '🔍 Validate hotfix criteria'
+        id: check
+        run: |
+          echo "::group::Hotfix Validation"
+          
+          IS_HOTFIX=false
+          TARGET_ENV="development"
+          EMERGENCY_MODE=false
+          
+          # Check if this is a hotfix release
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            if [[ "${{ github.event.release.tag_name }}" == hotfix* ]]; then
+              IS_HOTFIX=true
+              TARGET_ENV="production"
+              echo "🚨 Hotfix release detected: ${{ github.event.release.tag_name }}"
+            fi
+          fi
+          
+          # Check if this is a hotfix branch
+          if [[ "${{ github.ref }}" == refs/heads/hotfix/* ]]; then
+            IS_HOTFIX=true
+            TARGET_ENV="staging"
+            echo "🚨 Hotfix branch detected: ${{ github.ref_name }}"
+          fi
+          
+          # Check if this is manual emergency deployment
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            IS_HOTFIX=true
+            TARGET_ENV="${{ inputs.target_environment }}"
+            if [[ "${{ inputs.force_deploy }}" == "true" ]]; then
+              EMERGENCY_MODE=true
+              echo "🚨 EMERGENCY MODE: Quality gates may be bypassed!"
+            fi
+          fi
+          
+          echo "is-hotfix=${IS_HOTFIX}" >> $GITHUB_OUTPUT
+          echo "target-env=${TARGET_ENV}" >> $GITHUB_OUTPUT
+          echo "emergency-mode=${EMERGENCY_MODE}" >> $GITHUB_OUTPUT
+          
+          if [[ "${IS_HOTFIX}" == "true" ]]; then
+            echo "✅ Hotfix validation passed"
+          else
+            echo "❌ This is not a valid hotfix deployment"
+            exit 1
+          fi
+          
+          echo "::endgroup::"
+
+  # 🏗️ Emergency build
+  emergency-build:
+    name: '🏗️ Emergency Build'
+    runs-on: ubuntu-latest
+    needs: validate-hotfix
+    if: needs.validate-hotfix.outputs.is-hotfix == 'true'
+    
+    outputs:
+      build-version: ${{ steps.version.outputs.version }}
+    
+    steps:
+      - name: '📥 Checkout code'
+        uses: actions/checkout@v4
+        
+      - name: '🏷️ Generate hotfix version'
+        id: version
+        run: |
+          TIMESTAMP=$(date +%Y%m%d%H%M)
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            VERSION="${{ github.event.release.tag_name }}"
+          else
+            VERSION="hotfix-${TIMESTAMP}-${GITHUB_SHA::8}"
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "🏷️ Hotfix version: ${VERSION}"
+      
+      - name: '🏗️ Build application'
+        uses: ./.github/actions/build-dotnet
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          configuration: ${{ env.BUILD_CONFIGURATION }}
+          run-tests: ${{ inputs.skip_tests != true }}
+          collect-coverage: false
+          publish-app: true
+          publish-path: './publish'
+      
+      - name: '📦 Upload hotfix artifact'
+        uses: actions/upload-artifact@v4
+        with:
+          name: 'hotfix-${{ steps.version.outputs.version }}'
+          path: ./publish
+          retention-days: 90  # Keep hotfix artifacts longer
+
+  # 🚀 Hotfix deployment
+  hotfix-deploy:
+    name: '🚀 Deploy Hotfix'
+    runs-on: ubuntu-latest
+    needs: [validate-hotfix, emergency-build]
+    
+    environment:
+      name: ${{ needs.validate-hotfix.outputs.target-env }}
+      url: ${{ steps.deploy.outputs.webapp-url }}
+    
+    steps:
+      - name: '📥 Download hotfix artifact'
+        uses: actions/download-artifact@v4
+        with:
+          name: 'hotfix-${{ needs.emergency-build.outputs.build-version }}'
+          path: ./publish
+      
+      - name: '🚨 Pre-deployment notification'
+        run: |
+          echo "## 🚨 HOTFIX DEPLOYMENT IN PROGRESS" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ needs.validate-hotfix.outputs.target-env }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ needs.emergency-build.outputs.build-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Emergency Mode:** ${{ needs.validate-hotfix.outputs.emergency-mode }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Rollback Plan:** ${{ inputs.rollback_plan || 'Standard rollback procedure' }}" >> $GITHUB_STEP_SUMMARY
+      
+      - name: '🚀 Deploy hotfix'
+        id: deploy
+        uses: ./.github/actions/deploy-azure
+        with:
+          app-name: ${{ vars[format('AZURE_WEBAPP_NAME_{0}', upper(needs.validate-hotfix.outputs.target-env))] }}
+          package-path: './publish'
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      
+      - name: '🎯 Post-deployment verification'
+        run: |
+          echo "::group::Hotfix Verification"
+          
+          APP_URL="${{ steps.deploy.outputs.webapp-url }}"
+          echo "🌐 Verifying hotfix at: $APP_URL"
+          
+          # Extended verification for hotfixes
+          for i in {1..10}; do
+            if curl -s -f -L --max-time 15 "$APP_URL" > /dev/null; then
+              echo "✅ Hotfix verification successful (attempt $i)"
+              break
+            else
+              if [ $i -eq 10 ]; then
+                echo "❌ Hotfix verification failed after 10 attempts!"
+                exit 1
+              fi
+              echo "⏳ Verification attempt $i failed, retrying in 10 seconds..."
+              sleep 10
+            fi
+          done
+          
+          echo "::endgroup::"
+      
+      - name: '📊 Hotfix deployment summary'
+        run: |
+          echo "## ✅ HOTFIX DEPLOYMENT COMPLETED" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** Successful" >> $GITHUB_STEP_SUMMARY
+          echo "**URL:** ${{ steps.deploy.outputs.webapp-url }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployed by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployment time:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🔄 **Next Steps:**" >> $GITHUB_STEP_SUMMARY
+          echo "1. Verify the fix resolves the reported issue" >> $GITHUB_STEP_SUMMARY
+          echo "2. Monitor application logs and metrics" >> $GITHUB_STEP_SUMMARY  
+          echo "3. Create follow-up PR for proper testing and documentation" >> $GITHUB_STEP_SUMMARY

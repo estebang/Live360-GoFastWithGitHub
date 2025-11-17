@@ -1,0 +1,54 @@
+# 🔒 CodeQL Analysis Configuration
+#
+# This configuration defines custom rules and settings for CodeQL
+# security and quality analysis in the TailspinToys application.
+
+name: "TailspinToys CodeQL Configuration"
+
+# 🎯 Query configuration
+queries:
+  # 🛡️ Security-focused queries (always included)
+  - name: security-extended
+    uses: security-extended
+  
+  - name: security-and-quality  
+    uses: security-and-quality
+
+# 📊 Path filters
+paths:
+  # ✅ Include these paths in analysis
+  include:
+    - "src/**"
+    - "tests/**"
+  
+  # ❌ Exclude these paths from analysis  
+  exclude:
+    - "src/**/bin/**"
+    - "src/**/obj/**"
+    - "**/node_modules/**"
+    - "**/*.Designer.cs"
+    - "**/*.generated.cs"
+    - "**/Migrations/**"
+    - "tests/**/TestResults/**"
+
+# 🔧 Analysis configuration
+disable-default-path-filters: false
+
+# 🎯 Custom query packs (if any)
+packs:
+  - codeql/csharp-queries:AlertSuppression.ql
+  - codeql/csharp-queries:Security
+  - codeql/csharp-queries:Performance
+
+# 📋 Analysis options
+query-filters:
+  # 🔇 Suppress specific alerts that are not relevant
+  exclude:
+    # Example: Suppress specific rules if needed
+    # - id: "csharp/weak-crypto"
+    #   justification: "Using secure crypto implementation"
+
+# 🏷️ Custom threat model configuration
+threat-models:
+  - remote
+  - local

@@ -1,0 +1,127 @@
+# 🎯 Workflow Dispatch Templates
+#
+# Pre-defined templates for common manual workflow scenarios.
+# These can be used to quickly trigger workflows with standardized parameters.
+
+templates:
+  # 🚀 Standard Production Deployment
+  production-deploy:
+    workflow: ci.yml
+    inputs:
+      deploy_to_dev: true
+      deploy_to_prod: true
+      skip_tests: false
+    description: "Deploy current main branch to production with full validation"
+    
+  # 🧪 Development Only Deployment  
+  dev-deploy:
+    workflow: ci.yml
+    inputs:
+      deploy_to_dev: true
+      deploy_to_prod: false
+      skip_tests: false
+    description: "Deploy to development environment only for testing"
+    
+  # 🚨 Emergency Hotfix
+  emergency-hotfix:
+    workflow: hotfix-deployment.yml
+    inputs:
+      target_environment: "production"
+      skip_tests: true
+      force_deploy: true
+      rollback_plan: "Immediate rollback to previous stable version if issues detected"
+    description: "Emergency deployment bypassing normal quality gates"
+    
+  # 🔍 Security Scan Only
+  security-scan:
+    workflow: pr-validation.yml
+    inputs: {}
+    description: "Run comprehensive security analysis without deployment"
+    
+  # 🧪 Full Test Suite
+  comprehensive-test:
+    workflow: pr-validation.yml
+    inputs: {}
+    description: "Run complete test suite including performance and integration tests"
+
+# 📋 Common Environment Configurations
+environments:
+  development:
+    variables:
+      AZURE_WEBAPP_NAME: "tailspintoys-dev"
+      ASPNETCORE_ENVIRONMENT: "Development"
+      LOG_LEVEL: "Debug"
+    
+  staging:
+    variables:
+      AZURE_WEBAPP_NAME: "tailspintoys-staging"
+      ASPNETCORE_ENVIRONMENT: "Staging"  
+      LOG_LEVEL: "Information"
+    
+  production:
+    variables:
+      AZURE_WEBAPP_NAME: "tailspintoys-prod"
+      ASPNETCORE_ENVIRONMENT: "Production"
+      LOG_LEVEL: "Warning"
+
+# 🏷️ Standard Labels for Issues and PRs
+labels:
+  # Priority levels
+  - name: "priority: critical"
+    color: "d93f0b"
+    description: "Critical priority - immediate attention required"
+    
+  - name: "priority: high"  
+    color: "fbca04"
+    description: "High priority - should be addressed soon"
+    
+  - name: "priority: medium"
+    color: "0e8a16"
+    description: "Medium priority - normal development cycle"
+    
+  - name: "priority: low"
+    color: "c2e0c6"
+    description: "Low priority - nice to have"
+    
+  # Component areas
+  - name: "area: ci-cd"
+    color: "0052cc"
+    description: "Related to continuous integration/deployment"
+    
+  - name: "area: security"
+    color: "b60205"
+    description: "Security-related changes"
+    
+  - name: "area: performance"
+    color: "f9d0c4"
+    description: "Performance improvements or issues"
+    
+  - name: "area: docs"
+    color: "0075ca"
+    description: "Documentation updates"
+    
+  # Types
+  - name: "type: bug"
+    color: "d73a4a"
+    description: "Something isn't working"
+    
+  - name: "type: feature"
+    color: "a2eeef"
+    description: "New feature or request"
+    
+  - name: "type: hotfix"
+    color: "ff6b6b"
+    description: "Critical fix for production"
+    
+  - name: "type: maintenance"
+    color: "fef2c0"
+    description: "Maintenance and refactoring"
+    
+  # Automation
+  - name: "automated-pr"
+    color: "ededed"
+    description: "Pull request created by automation"
+    
+  - name: "dependencies"
+    color: "0366d6"
+    description: "Dependency updates"

@@ -1,0 +1,98 @@
+# 🎯 Environment-specific Configuration for GitHub Actions
+# 
+# This file contains environment-specific variables and settings
+# that can be referenced across workflows and deployment scripts.
+
+# 🌍 Development Environment
+development:
+  # Azure Configuration
+  azure_webapp_name: "tailspintoys-dev"
+  azure_resource_group: "rg-tailspintoys-dev"
+  azure_app_service_plan: "asp-tailspintoys-dev"
+  
+  # Application Configuration
+  aspnet_environment: "Development"
+  log_level: "Debug"
+  
+  # Feature Flags
+  enable_detailed_errors: true
+  enable_swagger: true
+  enable_hot_reload: true
+  
+  # Deployment Configuration
+  health_check_path: "/health"
+  deployment_timeout: 600  # 10 minutes
+  
+# 🎭 Staging Environment  
+staging:
+  # Azure Configuration
+  azure_webapp_name: "tailspintoys-staging"
+  azure_resource_group: "rg-tailspintoys-staging"
+  azure_app_service_plan: "asp-tailspintoys-staging"
+  
+  # Application Configuration
+  aspnet_environment: "Staging"
+  log_level: "Information"
+  
+  # Feature Flags
+  enable_detailed_errors: false
+  enable_swagger: true
+  enable_hot_reload: false
+  
+  # Deployment Configuration
+  health_check_path: "/health"
+  deployment_timeout: 900  # 15 minutes
+
+# 🌐 Production Environment
+production:
+  # Azure Configuration
+  azure_webapp_name: "tailspintoys-prod"
+  azure_resource_group: "rg-tailspintoys-prod" 
+  azure_app_service_plan: "asp-tailspintoys-prod"
+  
+  # Application Configuration
+  aspnet_environment: "Production"
+  log_level: "Warning"
+  
+  # Feature Flags
+  enable_detailed_errors: false
+  enable_swagger: false
+  enable_hot_reload: false
+  
+  # Deployment Configuration
+  health_check_path: "/health"
+  deployment_timeout: 1200  # 20 minutes
+  
+  # Production-specific settings
+  enable_compression: true
+  enable_caching: true
+  ssl_redirect: true
+
+# 🔧 Global Configuration (applies to all environments)
+global:
+  # .NET Configuration
+  dotnet_version: "9.0.x"
+  build_configuration: "Release"
+  target_framework: "net9.0"
+  
+  # Application Info
+  app_name: "TailspinToys"
+  app_version_prefix: "1.0"
+  
+  # Build Configuration
+  enable_nullable: true
+  treat_warnings_as_errors: true
+  
+  # Testing Configuration
+  test_results_format: "trx"
+  code_coverage_threshold: 80
+  
+  # Security Configuration
+  enable_dependency_scan: true
+  enable_codeql_scan: true
+  enable_container_scan: false  # Not using containers yet
+  
+  # Monitoring
+  enable_application_insights: true
+  retention_days_artifacts: 30
+  retention_days_logs: 90

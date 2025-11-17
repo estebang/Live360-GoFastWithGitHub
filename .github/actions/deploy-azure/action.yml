@@ -1,0 +1,134 @@
+name: 'Deploy to Azure Web App'
+description: 'Reusable composite action to deploy applications to Azure Web Apps using OIDC authentication'
+author: 'TailspinToys DevOps Team'
+
+inputs:
+  app-name:
+    description: 'Name of the Azure Web App'
+    required: true
+  
+  package-path:
+    description: 'Path to the deployment package'
+    required: false
+    default: './publish'
+  
+  azure-client-id:
+    description: 'Azure Client ID for OIDC authentication'
+    required: true
+  
+  azure-tenant-id:
+    description: 'Azure Tenant ID for OIDC authentication'
+    required: true
+  
+  azure-subscription-id:
+    description: 'Azure Subscription ID for OIDC authentication'
+    required: true
+  
+  slot-name:
+    description: 'Deployment slot name (optional)'
+    required: false
+    default: ''
+  
+  startup-command:
+    description: 'Custom startup command for the app'
+    required: false
+    default: ''
+
+outputs:
+  webapp-url:
+    description: 'URL of the deployed web application'
+    value: ${{ steps.deploy.outputs.webapp-url }}
+  
+  deployment-id:
+    description: 'Azure deployment ID'
+    value: ${{ steps.deploy.outputs.deployment-id }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: 'Verify deployment package'
+      shell: bash
+      run: |
+        echo "::group::Verifying deployment package"
+        if [ ! -d "${{ inputs.package-path }}" ]; then
+          echo "❌ Deployment package not found at: ${{ inputs.package-path }}"
+          exit 1
+        fi
+        
+        echo "📦 Package contents:"
+        ls -la "${{ inputs.package-path }}"
+        
+        # Check for essential files
+        if [ ! -f "${{ inputs.package-path }}/TailspinToys.Web.dll" ]; then
+          echo "⚠️  Warning: TailspinToys.Web.dll not found in package"
+        fi
+        
+        echo "✅ Deployment package verified"
+        echo "::endgroup::"
+    
+    - name: 'Login to Azure using OIDC'
+      uses: azure/login@v2
+      with:
+        client-id: ${{ inputs.azure-client-id }}
+        tenant-id: ${{ inputs.azure-tenant-id }}
+        subscription-id: ${{ inputs.azure-subscription-id }}
+    
+    - name: 'Get Azure Web App details'
+      shell: bash
+      run: |
+        echo "::group::Retrieving Azure Web App information"
+        az webapp show --name ${{ inputs.app-name }} --query "{name:name, state:state, location:location, resourceGroup:resourceGroup}" --output table
+        echo "::endgroup::"
+    
+    - name: 'Deploy to Azure Web App'
+      id: deploy
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: ${{ inputs.app-name }}
+        package: ${{ inputs.package-path }}
+        slot-name: ${{ inputs.slot-name }}
+        startup-command: ${{ inputs.startup-command }}
+    
+    - name: 'Verify deployment'
+      shell: bash
+      run: |
+        echo "::group::Verifying deployment"
+        
+        # Get the app URL
+        if [ -n "${{ inputs.slot-name }}" ]; then
+          APP_URL=$(az webapp show --name ${{ inputs.app-name }} --slot ${{ inputs.slot-name }} --query "defaultHostName" --output tsv)
+          FULL_URL="https://${APP_URL}"
+        else
+          APP_URL=$(az webapp show --name ${{ inputs.app-name }} --query "defaultHostName" --output tsv)
+          FULL_URL="https://${APP_URL}"
+        fi
+        
+        echo "🌐 Application URL: $FULL_URL"
+        
+        # Wait for the app to start (up to 60 seconds)
+        echo "⏳ Waiting for application to start..."
+        for i in {1..12}; do
+          if curl -s -f -L --max-time 10 "$FULL_URL" > /dev/null; then
+            echo "✅ Application is responding successfully!"
+            break
+          else
+            echo "⏳ Attempt $i/12: Application not ready yet, waiting 5 seconds..."
+            sleep 5
+          fi
+        done
+        
+        # Final health check
+        HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -L --max-time 15 "$FULL_URL" || echo "000")
+        if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+          echo "✅ Deployment verification successful (HTTP $HTTP_STATUS)"
+        else
+          echo "⚠️  Deployment may have issues (HTTP $HTTP_STATUS)"
+        fi
+        
+        echo "::endgroup::"
+    
+    - name: 'Azure logout'
+      shell: bash
+      run: |
+        az logout
+      if: always()

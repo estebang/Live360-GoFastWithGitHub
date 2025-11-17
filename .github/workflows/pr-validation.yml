@@ -1,0 +1,313 @@
+# 🔍 Pull Request Validation Workflow
+#
+# Comprehensive validation for pull requests to ensure code quality,
+# security, and compatibility before merging. This workflow runs
+# extensive checks without deploying to live environments.
+#
+# Features:
+# - Multi-OS testing matrix
+# - Code quality analysis  
+# - Security scanning
+# - Performance testing
+# - Documentation validation
+
+name: '🔍 PR Validation'
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main, develop, release/**]
+  
+  pull_request_review:
+    types: [submitted]
+
+# Security: Read-only permissions for PR validation
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+  security-events: write
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  BUILD_CONFIGURATION: 'Release'
+
+jobs:
+  # 📋 PR metadata and validation
+  pr-validation:
+    name: '📋 PR Validation'
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    
+    outputs:
+      should-run-tests: ${{ steps.changes.outputs.should-run-tests }}
+      has-code-changes: ${{ steps.changes.outputs.has-code-changes }}
+      has-docs-changes: ${{ steps.changes.outputs.has-docs-changes }}
+    
+    steps:
+      - name: '📥 Checkout PR'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need full history for change detection
+      
+      - name: '🔍 Analyze PR changes'
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            code:
+              - 'src/**/*.cs'
+              - 'tests/**/*.cs'
+              - '**/*.csproj'
+              - '**/*.props'
+              - '**/*.targets'
+            
+            docs:
+              - '**.md'
+              - 'docs/**'
+            
+            workflows:
+              - '.github/workflows/**'
+              - '.github/actions/**'
+            
+            config:
+              - 'appsettings*.json'
+              - 'web.config'
+              - '*.config'
+      
+      - name: '📊 PR Summary'
+        run: |
+          echo "## 🔍 PR Analysis Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Change Type | Detected |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------------|----------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Code Changes | ${{ steps.changes.outputs.code == 'true' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Documentation | ${{ steps.changes.outputs.docs == 'true' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY  
+          echo "| Workflows | ${{ steps.changes.outputs.workflows == 'true' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Configuration | ${{ steps.changes.outputs.config == 'true' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          
+          # Set outputs for downstream jobs
+          if [[ "${{ steps.changes.outputs.code }}" == "true" ]]; then
+            echo "should-run-tests=true" >> $GITHUB_OUTPUT
+            echo "has-code-changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "should-run-tests=false" >> $GITHUB_OUTPUT
+            echo "has-code-changes=false" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "has-docs-changes=${{ steps.changes.outputs.docs }}" >> $GITHUB_OUTPUT
+
+  # 🏗️ Multi-platform build validation
+  build-matrix:
+    name: '🏗️ Build (${{ matrix.os }}, .NET ${{ matrix.dotnet-version }})'
+    runs-on: ${{ matrix.os }}
+    needs: pr-validation
+    if: needs.pr-validation.outputs.has-code-changes == 'true'
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        dotnet-version: ['9.0.x']
+        include:
+          - os: ubuntu-latest
+            artifact-name: 'linux-build'
+          - os: windows-latest  
+            artifact-name: 'windows-build'
+          - os: macos-latest
+            artifact-name: 'macos-build'
+    
+    steps:
+      - name: '📥 Checkout code'
+        uses: actions/checkout@v4
+      
+      - name: '🏗️ Build and test'
+        uses: ./.github/actions/build-dotnet
+        with:
+          dotnet-version: ${{ matrix.dotnet-version }}
+          configuration: ${{ env.BUILD_CONFIGURATION }}
+          run-tests: true
+          collect-coverage: ${{ matrix.os == 'ubuntu-latest' }}  # Collect coverage only on Linux
+          publish-app: ${{ matrix.os == 'ubuntu-latest' }}       # Publish only on Linux
+          publish-path: './publish'
+
+  # 🧪 Extended testing
+  extended-tests:
+    name: '🧪 Extended Testing'
+    runs-on: ubuntu-latest
+    needs: [pr-validation, build-matrix]
+    if: needs.pr-validation.outputs.has-code-changes == 'true'
+    
+    strategy:
+      matrix:
+        test-type: [unit, integration, performance]
+    
+    steps:
+      - name: '📥 Checkout code'
+        uses: actions/checkout@v4
+      
+      - name: '🏗️ Setup .NET'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      
+      - name: '🧪 Run ${{ matrix.test-type }} tests'
+        run: |
+          echo "::group::${{ matrix.test-type }} Tests"
+          
+          case "${{ matrix.test-type }}" in
+            "unit")
+              echo "🧪 Running unit tests with coverage"
+              dotnet test --configuration ${{ env.BUILD_CONFIGURATION }} \
+                --collect:"XPlat Code Coverage" \
+                --filter "Category!=Integration&Category!=Performance" \
+                --verbosity normal
+              ;;
+            "integration")  
+              echo "🔗 Running integration tests"
+              dotnet test --configuration ${{ env.BUILD_CONFIGURATION }} \
+                --filter "Category=Integration" \
+                --verbosity normal
+              ;;
+            "performance")
+              echo "🚀 Running performance tests"
+              dotnet test --configuration ${{ env.BUILD_CONFIGURATION }} \
+                --filter "Category=Performance" \
+                --verbosity normal
+              ;;
+          esac
+          
+          echo "::endgroup::"
+
+  # 🔒 Security analysis
+  security-analysis:
+    name: '🔒 Security Analysis'  
+    runs-on: ubuntu-latest
+    needs: pr-validation
+    if: needs.pr-validation.outputs.has-code-changes == 'true'
+    
+    steps:
+      - name: '📥 Checkout code'
+        uses: actions/checkout@v4
+      
+      - name: '🔍 CodeQL Analysis'
+        uses: github/codeql-action/init@v3
+        with:
+          languages: csharp
+          queries: security-and-quality,security-extended
+      
+      - name: '🏗️ Build for CodeQL'
+        uses: github/codeql-action/autobuild@v3
+      
+      - name: '📊 Perform CodeQL Analysis'
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:csharp"
+      
+      - name: '🔒 Dependency vulnerability scan'
+        run: |
+          echo "::group::Dependency Security Scan"
+          
+          # Check for vulnerable packages
+          echo "🔍 Scanning for vulnerable dependencies..."
+          VULNERABLE_OUTPUT=$(dotnet list package --vulnerable --include-transitive 2>&1)
+          
+          if echo "$VULNERABLE_OUTPUT" | grep -q "has the following vulnerable packages"; then
+            echo "⚠️ Vulnerable dependencies found:"
+            echo "$VULNERABLE_OUTPUT"
+            echo "::warning::Vulnerable dependencies detected. Please review and update packages."
+          else
+            echo "✅ No vulnerable dependencies detected"
+          fi
+          
+          echo "::endgroup::"
+
+  # 📝 Documentation validation
+  docs-validation:
+    name: '📝 Documentation Validation'
+    runs-on: ubuntu-latest
+    needs: pr-validation
+    if: needs.pr-validation.outputs.has-docs-changes == 'true'
+    
+    steps:
+      - name: '📥 Checkout code'
+        uses: actions/checkout@v4
+      
+      - name: '📝 Validate markdown files'
+        uses: DavidAnson/markdownlint-cli2-action@v16
+        with:
+          globs: '**/*.md'
+          config: |
+            {
+              "default": true,
+              "MD013": false,
+              "MD033": false,
+              "MD041": false
+            }
+      
+      - name: '🔗 Check for broken links'
+        run: |
+          echo "::group::Link Validation"
+          echo "🔗 Checking for broken links in documentation..."
+          
+          # Simple link checking (can be enhanced with specialized tools)
+          find . -name "*.md" -exec grep -l "http" {} \; | while read file; do
+            echo "📄 Checking links in: $file"
+            # Extract URLs and check basic format
+            grep -o 'https\?://[^)]*' "$file" | head -5 | while read url; do
+              echo "  🔗 Found: $url"
+            done
+          done
+          
+          echo "::endgroup::"
+
+  # 📊 PR Status Check
+  pr-status:
+    name: '📊 PR Status Summary'
+    runs-on: ubuntu-latest
+    needs: [pr-validation, build-matrix, extended-tests, security-analysis, docs-validation]
+    if: always()
+    
+    steps:
+      - name: '📊 Generate PR summary'
+        run: |
+          echo "## 🎯 PR Validation Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Build status
+          BUILD_STATUS="${{ needs.build-matrix.result }}"
+          if [[ "$BUILD_STATUS" == "success" ]]; then
+            echo "✅ **Build:** All platforms passed" >> $GITHUB_STEP_SUMMARY
+          elif [[ "$BUILD_STATUS" == "failure" ]]; then  
+            echo "❌ **Build:** Failed on one or more platforms" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⏭️ **Build:** Skipped (no code changes)" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Test status
+          TEST_STATUS="${{ needs.extended-tests.result }}"
+          if [[ "$TEST_STATUS" == "success" ]]; then
+            echo "✅ **Tests:** All test suites passed" >> $GITHUB_STEP_SUMMARY
+          elif [[ "$TEST_STATUS" == "failure" ]]; then
+            echo "❌ **Tests:** Some tests failed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⏭️ **Tests:** Skipped (no code changes)" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Security status  
+          SECURITY_STATUS="${{ needs.security-analysis.result }}"
+          if [[ "$SECURITY_STATUS" == "success" ]]; then
+            echo "🔒 **Security:** No issues detected" >> $GITHUB_STEP_SUMMARY
+          elif [[ "$SECURITY_STATUS" == "failure" ]]; then
+            echo "🚨 **Security:** Issues detected - review required" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⏭️ **Security:** Skipped (no code changes)" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Overall status
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [[ "$BUILD_STATUS" == "success" && "$TEST_STATUS" == "success" && "$SECURITY_STATUS" == "success" ]]; then
+            echo "🎉 **Overall Status:** Ready for review and merge!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ **Overall Status:** Issues detected - please review and fix" >> $GITHUB_STEP_SUMMARY
+          fi

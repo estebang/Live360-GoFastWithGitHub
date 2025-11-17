@@ -1,0 +1,231 @@
+# 🔄 Reusable Deployment Workflow
+# 
+# This reusable workflow can be called by other workflows or repositories
+# to deploy .NET applications to Azure Web Apps using standardized patterns.
+#
+# Usage example:
+#   uses: ./.github/workflows/reusable-deployment.yml
+#   with:
+#     environment: 'development'
+#     app-name: 'my-webapp'
+#     dotnet-version: '9.0.x'
+#   secrets:
+#     azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+#     azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+#     azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+name: 'Reusable Deployment'
+
+on:
+  workflow_call:
+    inputs:
+      # 🎯 Application Configuration
+      app-name:
+        description: 'Name of the Azure Web App'
+        required: true
+        type: string
+      
+      environment:
+        description: 'Target environment (development/staging/production)'
+        required: true
+        type: string
+      
+      dotnet-version:
+        description: 'The .NET version to use'
+        required: false
+        default: '9.0.x'
+        type: string
+      
+      build-configuration:
+        description: 'Build configuration (Release/Debug)'
+        required: false
+        default: 'Release'
+        type: string
+      
+      # 🚀 Deployment Options
+      project-path:
+        description: 'Path to the main project file'
+        required: false
+        default: 'src/TailspinToys.Web/TailspinToys.Web.csproj'
+        type: string
+      
+      startup-command:
+        description: 'Custom startup command for the Azure Web App'
+        required: false
+        default: ''
+        type: string
+      
+      deployment-slot:
+        description: 'Azure Web App deployment slot'
+        required: false
+        default: ''
+        type: string
+      
+      # 🧪 Testing Options  
+      run-smoke-tests:
+        description: 'Run smoke tests after deployment'
+        required: false
+        default: true
+        type: boolean
+      
+      health-check-url:
+        description: 'Custom health check URL path'
+        required: false
+        default: '/health'
+        type: string
+    
+    # 🔐 Required secrets for Azure authentication
+    secrets:
+      azure-client-id:
+        description: 'Azure Client ID for OIDC authentication'
+        required: true
+      
+      azure-tenant-id:
+        description: 'Azure Tenant ID for OIDC authentication'
+        required: true
+      
+      azure-subscription-id:
+        description: 'Azure Subscription ID for OIDC authentication'  
+        required: true
+    
+    # 📤 Outputs from this reusable workflow
+    outputs:
+      deployment-url:
+        description: 'URL of the deployed application'
+        value: ${{ jobs.deploy.outputs.webapp-url }}
+      
+      deployment-status:
+        description: 'Status of the deployment (success/failure)'
+        value: ${{ jobs.deploy.outputs.status }}
+      
+      deployment-version:
+        description: 'Version of the deployed application'
+        value: ${{ jobs.deploy.outputs.version }}
+
+# 🔒 Minimal required permissions
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  # 🏗️ Build job - creates deployment artifact
+  build:
+    name: '🏗️ Build Application'
+    runs-on: ubuntu-latest
+    
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    
+    steps:
+      - name: '📥 Checkout repository'
+        uses: actions/checkout@v4
+      
+      - name: '🏷️ Generate version'
+        id: version
+        run: |
+          VERSION="${{ inputs.environment }}-${GITHUB_SHA::8}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "📦 Build version: ${VERSION}"
+      
+      - name: '🏗️ Build and publish'
+        uses: ./.github/actions/build-dotnet
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+          configuration: ${{ inputs.build-configuration }}
+          project-path: ${{ inputs.project-path }}
+          run-tests: true
+          collect-coverage: false
+          publish-app: true
+          publish-path: './publish'
+      
+      - name: '📦 Upload deployment artifact'
+        uses: actions/upload-artifact@v4
+        with:
+          name: 'reusable-deployment-${{ inputs.environment }}'
+          path: ./publish
+          retention-days: 7
+
+  # 🚀 Deployment job - deploys to target environment
+  deploy:
+    name: '🚀 Deploy to ${{ inputs.environment }}'
+    runs-on: ubuntu-latest
+    needs: build
+    
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ steps.deploy.outputs.webapp-url }}
+    
+    outputs:
+      webapp-url: ${{ steps.deploy.outputs.webapp-url }}
+      status: ${{ steps.deploy.conclusion }}
+      version: ${{ needs.build.outputs.version }}
+    
+    steps:
+      - name: '📥 Download deployment artifact'
+        uses: actions/download-artifact@v4
+        with:
+          name: 'reusable-deployment-${{ inputs.environment }}'
+          path: ./publish
+      
+      - name: '🚀 Deploy to Azure'
+        id: deploy
+        uses: ./.github/actions/deploy-azure
+        with:
+          app-name: ${{ inputs.app-name }}
+          package-path: './publish'
+          azure-client-id: ${{ secrets.azure-client-id }}
+          azure-tenant-id: ${{ secrets.azure-tenant-id }}
+          azure-subscription-id: ${{ secrets.azure-subscription-id }}
+          slot-name: ${{ inputs.deployment-slot }}
+          startup-command: ${{ inputs.startup-command }}
+
+  # 🧪 Post-deployment testing
+  smoke-tests:
+    name: '🧪 Smoke Tests'
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: inputs.run-smoke-tests == true
+    
+    steps:
+      - name: '📥 Checkout repository (for test scripts)'
+        uses: actions/checkout@v4
+      
+      - name: '🧪 Run smoke tests'
+        run: |
+          echo "::group::Smoke Tests for ${{ inputs.environment }}"
+          
+          APP_URL="${{ needs.deploy.outputs.webapp-url }}"
+          HEALTH_URL="${APP_URL}${{ inputs.health-check-url }}"
+          
+          echo "🌐 Testing application: $APP_URL"
+          echo "🏥 Health check URL: $HEALTH_URL"
+          
+          # Test 1: Basic connectivity
+          echo "🔍 Test 1: Basic connectivity"
+          if curl -s -f -L --max-time 30 "$APP_URL" > /dev/null; then
+            echo "✅ Application is accessible"
+          else
+            echo "❌ Application is not accessible"
+            exit 1
+          fi
+          
+          # Test 2: Health check (if available)
+          echo "🔍 Test 2: Health check endpoint"
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -L --max-time 15 "$HEALTH_URL" || echo "000")
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
+            echo "✅ Health check passed (HTTP $HTTP_STATUS)"
+          else
+            echo "ℹ️  Health check endpoint not available or returned HTTP $HTTP_STATUS"
+          fi
+          
+          # Test 3: Response time check
+          echo "🔍 Test 3: Response time check"
+          RESPONSE_TIME=$(curl -s -o /dev/null -w "%{time_total}" -L --max-time 15 "$APP_URL")
+          if (( $(echo "$RESPONSE_TIME < 5.0" | bc -l) )); then
+            echo "✅ Response time acceptable: ${RESPONSE_TIME}s"
+          else
+            echo "⚠️  Response time slow: ${RESPONSE_TIME}s"
+          fi
+          
+          echo "🎉 All smoke tests completed for ${{ inputs.environment }}!"
+          echo "::endgroup::"

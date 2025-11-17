@@ -74,7 +74,7 @@ demo/custom-agent
 3. Copilot prompt:
 
 ```
-Create a CI workflow for this .NET 8 Razor Pages application.
+Create a CI workflow for this .NET 9 Razor Pages application.
 It should run on push and pull_request, restore dependencies,
 build, test, and cache NuGet packages.
 ```
@@ -131,7 +131,7 @@ VS Code → Agent Mode:
 ```
 Analyze this repository and create a complete CI/CD pipeline using GitHub Actions.
 Include:
-- build and test for .NET 8
+- build and test for 9
 - dev and prod environments
 - deploy to Azure using OIDC
 - reusable code patterns
