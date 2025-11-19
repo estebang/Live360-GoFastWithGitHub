@@ -110,12 +110,6 @@ jobs:
     # Use the specified environment for approval gates and secrets
     environment: ${{ inputs.environment-name }}
     
-    # Required permissions for OIDC authentication
-    permissions:
-      id-token: write      # Required for OIDC token generation
-      contents: read       # Required to read repository contents
-      actions: read        # Required to read workflow metadata
-    
     outputs:
       deployment-url: ${{ steps.deploy-info.outputs.url }}
       deployment-status: success

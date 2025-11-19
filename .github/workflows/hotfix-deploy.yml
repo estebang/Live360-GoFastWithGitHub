@@ -137,6 +137,13 @@ jobs:
       needs.validate-hotfix.outputs.can-proceed == 'true' && 
       needs.emergency-build-test.result == 'success' &&
       (inputs.target-environment == 'staging' || (inputs.target-environment == 'production' && inputs.skip-staging == false))
+    
+    # Required permissions for Azure OIDC authentication
+    permissions:
+      id-token: write
+      contents: read
+      actions: read
+    
     uses: ./.github/workflows/reusable-azure-deploy.yml
     with:
       environment-name: 'staging'
@@ -187,6 +194,13 @@ jobs:
       needs.emergency-build-test.result == 'success' &&
       needs.production-approval.result == 'success' &&
       inputs.target-environment == 'production'
+    
+    # Required permissions for Azure OIDC authentication
+    permissions:
+      id-token: write
+      contents: read
+      actions: read
+    
     uses: ./.github/workflows/reusable-azure-deploy.yml
     with:
       environment-name: 'production'

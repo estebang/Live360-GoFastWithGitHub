@@ -135,6 +135,13 @@ jobs:
     if: |
       (github.ref == 'refs/heads/develop' && github.event_name == 'push') ||
       (github.event_name == 'workflow_dispatch' && inputs.environment == 'development')
+    
+    # Required permissions for Azure OIDC authentication
+    permissions:
+      id-token: write
+      contents: read
+      actions: read
+    
     uses: ./.github/workflows/reusable-azure-deploy.yml
     with:
       environment-name: 'development'
@@ -159,6 +166,13 @@ jobs:
     if: |
       (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
       (github.event_name == 'workflow_dispatch' && inputs.environment == 'staging')
+    
+    # Required permissions for Azure OIDC authentication
+    permissions:
+      id-token: write
+      contents: read
+      actions: read
+    
     uses: ./.github/workflows/reusable-azure-deploy.yml
     with:
       environment-name: 'staging'
@@ -218,6 +232,13 @@ jobs:
     if: |
       (needs.integration-tests.result == 'success' && github.ref == 'refs/heads/main') ||
       (github.event_name == 'workflow_dispatch' && inputs.environment == 'production')
+    
+    # Required permissions for Azure OIDC authentication
+    permissions:
+      id-token: write
+      contents: read
+      actions: read
+    
     uses: ./.github/workflows/reusable-azure-deploy.yml
     with:
       environment-name: 'production'
