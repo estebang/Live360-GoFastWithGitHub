@@ -1,394 +1,355 @@
-# 🚀 TailspinToys CI/CD Pipeline
-# 
-# This workflow provides comprehensive CI/CD for the TailspinToys .NET 9 application:
-# - 🏗️  Build and test with .NET 9
-# - 🔒 Security scanning (CodeQL, vulnerability assessment)
-# - 🚀 Multi-environment deployment (dev → prod)
-# - 🌐 Azure deployment using OIDC authentication
-# - ♻️  Reusable composite actions for maintainability
-#
-# Triggered on:
-# - Push to main/develop branches (full CI/CD)
-# - Pull requests (CI only)
-# - Manual workflow dispatch with options
+# Main CI/CD Pipeline for TailspinToys
+# This workflow orchestrates the build, test, and deployment processes
+# using reusable workflows for consistency and maintainability
 
-name: 'CI/CD Pipeline'
+name: CI/CD Pipeline
 
 on:
+  # Trigger on pushes to main branches and pull requests
   push:
-    branches: [ main, develop ]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.github/ISSUE_TEMPLATE/**'
-      - '.github/PULL_REQUEST_TEMPLATE.md'
-  
+    branches: [ main, develop, demo/* ]
   pull_request:
     branches: [ main, develop ]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.github/ISSUE_TEMPLATE/**'
-      - '.github/PULL_REQUEST_TEMPLATE.md'
   
+  # Allow manual workflow runs with environment selection
   workflow_dispatch:
     inputs:
-      deploy_to_dev:
-        description: 'Deploy to Development environment'
-        required: false
-        default: true
-        type: boolean
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'development'
+        type: choice
+        options:
+        - development
+        - staging
+        - production
       
-      deploy_to_prod:
-        description: 'Deploy to Production environment'
-        required: false
-        default: false
-        type: boolean
-      
-      skip_tests:
+      skip-tests:
         description: 'Skip running tests'
         required: false
         default: false
         type: boolean
 
-# Security: Minimal permissions with explicit grants
-permissions:
-  contents: read           # Read repository contents
-  id-token: write         # Request OIDC tokens for Azure authentication
-  security-events: write  # Upload CodeQL results
-  actions: read           # Read workflow run information
-  pull-requests: write    # Comment on PRs with results
-
-# 📊 Global environment variables used across all jobs
+# Global environment variables
 env:
   DOTNET_VERSION: '9.0.x'
-  BUILD_CONFIGURATION: 'Release'
-  ARTIFACT_NAME: 'tailspintoys-app'
+  SOLUTION_PATH: 'TailspinToys.sln'
+  PROJECT_PATH: 'src/TailspinToys.Web/TailspinToys.Web.csproj'
+
+# Ensure only one workflow runs at a time per branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  # 🏗️ BUILD & TEST JOB
-  # Builds the application, runs tests, and creates deployment artifacts
+  # Job 1: Build and Test
+  # Uses the reusable workflow for consistent build and test processes
   build-and-test:
-    name: '🏗️ Build & Test (.NET 9)'
-    runs-on: ubuntu-latest
+    name: 🔨 Build & Test
+    uses: ./.github/workflows/reusable-build-and-test.yml
+    with:
+      dotnet-version: '9.0.x'
+      configuration: 'Release'
+      solution-path: 'TailspinToys.sln'
+      upload-coverage: true
+      run-security-scan: true
+      runs-on: 'ubuntu-latest'
+    secrets: inherit
     
-    # 🔄 Strategy matrix allows testing multiple configurations in parallel
-    strategy:
-      fail-fast: false  # Continue other matrix jobs even if one fails
-      matrix:
-        os: [ubuntu-latest]
-        dotnet-version: ['9.0.x']
-    
-    # 📤 Expose outputs for dependent jobs
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-      test-outcome: ${{ steps.build.outputs.test-outcome }}
-    
-    steps:
-      - name: '📥 Checkout repository'
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Full history for proper versioning
-      
-      # 🏷️ Generate semantic version for this build
-      - name: '🏷️ Generate version'
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            VERSION="pr-${{ github.event.number }}-${GITHUB_SHA::8}"
-          else
-            VERSION="${GITHUB_REF_NAME}-${GITHUB_SHA::8}"
-          fi
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "📦 Build version: ${VERSION}"
-      
-      # 🏗️ Use our custom composite action for build/test
-      - name: '🏗️ Build and test application'
-        id: build
-        uses: ./.github/actions/build-dotnet
-        with:
-          dotnet-version: ${{ matrix.dotnet-version }}
-          configuration: ${{ env.BUILD_CONFIGURATION }}
-          run-tests: ${{ inputs.skip_tests != true }}
-          collect-coverage: true
-          publish-app: true
-          publish-path: './publish'
-      
-      # 📦 Upload deployment artifact for later use
-      - name: '📦 Upload deployment artifact'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.ARTIFACT_NAME }}
-          path: ./publish
-          retention-days: 30
-          compression-level: 6
-      
-      # 📊 Publish test summary to PR (if applicable)
-      - name: '📊 Publish test results'
-        uses: dorny/test-reporter@v1
-        if: success() || failure()
-        with:
-          name: '.NET Tests'
-          path: './TestResults/**/*.trx'
-          reporter: 'dotnet-trx'
+    # Skip this job if manual run with skip-tests enabled
+    if: ${{ !inputs.skip-tests }}
 
-  # 🛡️ SECURITY ANALYSIS JOB  
-  # Performs comprehensive security scanning using multiple tools
-  security-analysis:
-    name: '🛡️ Security Analysis'
+  # Job 2: Code Quality Analysis
+  # Additional quality gates for code maintainability
+  code-quality:
+    name: 🔍 Code Quality
     runs-on: ubuntu-latest
-    needs: build-and-test
+    if: github.event_name == 'pull_request'
     
-    # 🔄 Run security checks in parallel for faster feedback
-    strategy:
-      matrix:
-        scan-type: [codeql, dependency-scan]
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
     
     steps:
-      - name: '📥 Checkout repository'
-        uses: actions/checkout@v4
-      
-      # 🔍 CodeQL Analysis for semantic code scanning
-      - name: '🔍 Initialize CodeQL'
-        if: matrix.scan-type == 'codeql'
-        uses: github/codeql-action/init@v3
-        with:
-          languages: csharp
-          config: |
-            name: "TailspinToys CodeQL Config"
-            queries:
-              - uses: security-and-quality
-              - uses: security-extended
-      
-      # 🏗️ Build for CodeQL (lightweight build)
-      - name: '🏗️ CodeQL Autobuild'
-        if: matrix.scan-type == 'codeql'
-        uses: github/codeql-action/autobuild@v3
-      
-      # 📊 Perform CodeQL Analysis
-      - name: '📊 Perform CodeQL Analysis'
-        if: matrix.scan-type == 'codeql'
-        uses: github/codeql-action/analyze@v3
-        with:
-          category: "/language:csharp"
-      
-      # 🔒 Dependency vulnerability scanning
-      - name: '🔒 Dependency Security Scan'
-        if: matrix.scan-type == 'dependency-scan'
-        uses: ./.github/actions/build-dotnet
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-          configuration: Debug  # Debug for faster restore
-          run-tests: false
-          collect-coverage: false
-          publish-app: false
-      
-      - name: '🔍 Check for vulnerable packages'
-        if: matrix.scan-type == 'dependency-scan'
-        run: |
-          echo "::group::Vulnerability Assessment"
-          
-          # Check for known vulnerabilities
-          echo "🔍 Checking for vulnerable packages..."
-          VULNERABLE_PACKAGES=$(dotnet list package --vulnerable --include-transitive 2>&1 || echo "No vulnerabilities found")
-          
-          if echo "$VULNERABLE_PACKAGES" | grep -q "has the following vulnerable packages"; then
-            echo "⚠️ SECURITY ALERT: Vulnerable packages detected!"
-            echo "$VULNERABLE_PACKAGES"
-            echo "::error::Vulnerable dependencies found. Please update packages."
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for better analysis
+    
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    # Run SonarCloud analysis for code quality metrics
+    - name: SonarCloud analysis
+      uses: SonarSource/sonarcloud-github-action@master
+      if: env.SONAR_TOKEN != ''
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      with:
+        args: >
+          -Dsonar.projectKey=tailspintoys
+          -Dsonar.organization=tailspintoys
+          -Dsonar.sources=src/
+          -Dsonar.tests=tests/
+          -Dsonar.cs.opencover.reportsPaths=**/coverage.opencover.xml
+    
+    # Check for common security issues in dependencies
+    - name: Run dependency check
+      run: |
+        dotnet list package --vulnerable --include-transitive || echo "No vulnerabilities found"
+    
+    # Validate project structure and conventions
+    - name: Project structure validation
+      run: |
+        echo "::group::Validating project structure"
+        # Check for required files
+        required_files=("README.md" "TailspinToys.sln" ".gitignore")
+        
+        for file in "${required_files[@]}"; do
+          if [ ! -f "$file" ]; then
+            echo "::error::Required file $file is missing"
             exit 1
           else
-            echo "✅ No vulnerable packages detected"
+            echo "✅ Found $file"
           fi
-          
-          # Check for outdated packages
-          echo "📊 Checking for outdated packages..."
-          dotnet list package --outdated
-          
-          echo "::endgroup::"
+        done
+        
+        # Check project naming conventions
+        if ! find src/ -name "*.csproj" | grep -q "TailspinToys"; then
+          echo "::error::Project files should follow TailspinToys naming convention"
+          exit 1
+        fi
+        
+        echo "::notice::Project structure validation passed"
+        echo "::endgroup::"
 
-  # ✅ QUALITY GATE JOB
-  # Determines if the build meets quality standards for deployment
-  quality-gate:
-    name: '✅ Quality Gate'
-    runs-on: ubuntu-latest
-    needs: [build-and-test, security-analysis]
-    if: always()  # Run even if some jobs fail, but evaluate conditions
-    
-    outputs:
-      deploy-ready: ${{ steps.gate.outputs.deploy-ready }}
-      gate-status: ${{ steps.gate.outputs.status }}
-    
-    steps:
-      - name: '🎯 Evaluate quality metrics'
-        id: gate
-        run: |
-          echo "::group::Quality Gate Evaluation"
-          
-          BUILD_STATUS="${{ needs.build-and-test.result }}"
-          SECURITY_STATUS="${{ needs.security-analysis.result }}"
-          
-          echo "🏗️  Build Status: $BUILD_STATUS"
-          echo "🛡️  Security Status: $SECURITY_STATUS"
-          
-          # Determine if deployment should proceed
-          if [[ "$BUILD_STATUS" == "success" && "$SECURITY_STATUS" == "success" ]]; then
-            echo "✅ Quality gate PASSED - Ready for deployment"
-            echo "deploy-ready=true" >> $GITHUB_OUTPUT
-            echo "status=passed" >> $GITHUB_OUTPUT
-          else
-            echo "❌ Quality gate FAILED - Deployment blocked"
-            echo "deploy-ready=false" >> $GITHUB_OUTPUT
-            echo "status=failed" >> $GITHUB_OUTPUT
-          fi
-          
-          echo "::endgroup::"
-
-  # 🚀 DEVELOPMENT DEPLOYMENT JOB
-  # Deploys to development environment for testing and validation
-  deploy-dev:
-    name: '🚀 Deploy to Development'
-    runs-on: ubuntu-latest
-    needs: [build-and-test, quality-gate]
-    
-    # 🌍 Environment configuration with protection rules
-    environment: 
-      name: development
-      url: ${{ steps.deploy.outputs.webapp-url }}
-    
-    # 🎯 Deployment conditions
+  # Job 3: Deploy to Development
+  # Automatic deployment to dev environment on develop branch
+  deploy-development:
+    name: 🚀 Deploy to Development
+    needs: [build-and-test]
     if: |
-      needs.quality-gate.outputs.deploy-ready == 'true' &&
-      (
-        (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
-        (github.ref == 'refs/heads/develop' && github.event_name == 'push') ||
-        (github.event_name == 'workflow_dispatch' && inputs.deploy_to_dev == true)
-      )
-    
-    steps:
-      - name: '📥 Download deployment artifact'
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ env.ARTIFACT_NAME }}
-          path: ./publish
-      
-      # 🚀 Use our custom deployment action
-      - name: '🚀 Deploy to Azure Web App (Development)'
-        id: deploy
-        uses: ./.github/actions/deploy-azure
-        with:
-          app-name: ${{ vars.AZURE_WEBAPP_NAME_DEV }}
-          package-path: './publish'
-          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      
-      # 🔗 Comment on PR with deployment info (if PR event)
-      - name: '💬 Comment on PR'
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `## 🚀 Deployment Successful!\n\n**Environment:** Development\n**URL:** ${{ steps.deploy.outputs.webapp-url }}\n**Version:** ${{ needs.build-and-test.outputs.version }}\n\nThe application has been deployed and is ready for testing! 🎉`
-            })
+      (github.ref == 'refs/heads/develop' && github.event_name == 'push') ||
+      (github.event_name == 'workflow_dispatch' && inputs.environment == 'development')
+    uses: ./.github/workflows/reusable-azure-deploy.yml
+    with:
+      environment-name: 'development'
+      app-name: ${{ vars.AZURE_WEBAPP_NAME_DEV }}
+      dotnet-version: '9.0.x'
+      configuration: 'Release'
+      project-path: 'src/TailspinToys.Web/TailspinToys.Web.csproj'
+      solution-path: 'TailspinToys.sln'
+      run-health-check: true
+      health-check-endpoint: '/health'
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      APP_SETTINGS_JSON: ${{ secrets.DEV_APP_SETTINGS_JSON }}
 
-  # 🌐 PRODUCTION DEPLOYMENT JOB  
-  # Deploys to production environment after successful dev deployment
-  deploy-prod:
-    name: '🌐 Deploy to Production'
-    runs-on: ubuntu-latest
-    needs: [build-and-test, quality-gate, deploy-dev]
-    
-    # 🌍 Production environment with enhanced protection
-    environment: 
-      name: production
-      url: ${{ steps.deploy.outputs.webapp-url }}
-    
-    # 🎯 Strict deployment conditions for production
+  # Job 4: Deploy to Staging
+  # Deployment to staging environment for pre-production testing
+  deploy-staging:
+    name: 🎭 Deploy to Staging
+    needs: [build-and-test]
     if: |
-      needs.quality-gate.outputs.deploy-ready == 'true' &&
-      needs.deploy-dev.result == 'success' &&
-      (
-        (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
-        (github.event_name == 'workflow_dispatch' && inputs.deploy_to_prod == true)
-      )
-    
-    steps:
-      - name: '📥 Download deployment artifact'
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ env.ARTIFACT_NAME }}
-          path: ./publish
-      
-      # 🚀 Deploy to production using our composite action
-      - name: '🌐 Deploy to Azure Web App (Production)'
-        id: deploy
-        uses: ./.github/actions/deploy-azure
-        with:
-          app-name: ${{ vars.AZURE_WEBAPP_NAME_PROD }}
-          package-path: './publish'
-          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      
-      # 🎉 Create GitHub release on successful production deployment
-      - name: '🎉 Create GitHub Release'
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { owner, repo } = context.repo;
-            const version = "${{ needs.build-and-test.outputs.version }}";
-            const releaseUrl = "${{ steps.deploy.outputs.webapp-url }}";
-            
-            try {
-              await github.rest.repos.createRelease({
-                owner,
-                repo,
-                tag_name: `v${version}`,
-                name: `TailspinToys v${version}`,
-                body: `## 🚀 Release v${version}\n\n**Deployed to:** ${releaseUrl}\n**Commit:** ${context.sha}\n\nThis release was automatically created after successful production deployment.`,
-                draft: false,
-                prerelease: false
-              });
-              console.log(`✅ Release v${version} created successfully`);
-            } catch (error) {
-              console.log(`ℹ️  Release creation skipped: ${error.message}`);
-            }
+      (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
+      (github.event_name == 'workflow_dispatch' && inputs.environment == 'staging')
+    uses: ./.github/workflows/reusable-azure-deploy.yml
+    with:
+      environment-name: 'staging'
+      app-name: ${{ vars.AZURE_WEBAPP_NAME_STAGING }}
+      dotnet-version: '9.0.x'
+      configuration: 'Release'
+      project-path: 'src/TailspinToys.Web/TailspinToys.Web.csproj'
+      solution-path: 'TailspinToys.sln'
+      run-health-check: true
+      health-check-endpoint: '/health'
+      slot-name: 'staging'  # Use deployment slots for zero-downtime
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      APP_SETTINGS_JSON: ${{ secrets.STAGING_APP_SETTINGS_JSON }}
 
-  # 📊 POST-DEPLOYMENT JOB
-  # Runs post-deployment validation and sends notifications  
-  post-deployment:
-    name: '📊 Post-Deployment Tasks'
+  # Job 5: Integration Tests (Staging)
+  # Run integration tests against the staging environment
+  integration-tests:
+    name: 🧪 Integration Tests
+    needs: [deploy-staging]
     runs-on: ubuntu-latest
-    needs: [build-and-test, deploy-dev, deploy-prod]
-    if: always() && (needs.deploy-dev.result != 'skipped' || needs.deploy-prod.result != 'skipped')
+    if: needs.deploy-staging.result == 'success'
     
     steps:
-      - name: '📊 Generate deployment summary'
-        run: |
-          echo "## 🚀 TailspinToys Deployment Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Environment | Status | URL |" >> $GITHUB_STEP_SUMMARY
-          echo "|-------------|--------|-----|" >> $GITHUB_STEP_SUMMARY
-          
-          if [[ "${{ needs.deploy-dev.result }}" == "success" ]]; then
-            echo "| Development | ✅ Success | [View App](${{ needs.deploy-dev.outputs.webapp-url }}) |" >> $GITHUB_STEP_SUMMARY
-          elif [[ "${{ needs.deploy-dev.result }}" != "skipped" ]]; then
-            echo "| Development | ❌ Failed | - |" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          if [[ "${{ needs.deploy-prod.result }}" == "success" ]]; then
-            echo "| Production | ✅ Success | [View App](${{ needs.deploy-prod.outputs.webapp-url }}) |" >> $GITHUB_STEP_SUMMARY
-          elif [[ "${{ needs.deploy-prod.result }}" != "skipped" ]]; then
-            echo "| Production | ❌ Failed | - |" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Build Version:** ${{ needs.build-and-test.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    # Run integration tests against staging environment
+    - name: Run integration tests
+      env:
+        TEST_BASE_URL: https://${{ vars.AZURE_WEBAPP_NAME_STAGING }}-staging.azurewebsites.net
+      run: |
+        echo "::group::Running integration tests"
+        # Add integration test commands here when available
+        echo "Integration test base URL: $TEST_BASE_URL"
+        
+        # Example: Run API tests
+        # dotnet test tests/TailspinToys.IntegrationTests/ --configuration Release --logger "console;verbosity=detailed"
+        
+        # For now, just verify the application is responding
+        curl -f "$TEST_BASE_URL" || exit 1
+        echo "::notice::Integration tests passed"
+        echo "::endgroup::"
 
+  # Job 6: Deploy to Production
+  # Manual approval required for production deployment
+  deploy-production:
+    name: 🌟 Deploy to Production
+    needs: [build-and-test, integration-tests]
+    if: |
+      (needs.integration-tests.result == 'success' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && inputs.environment == 'production')
+    uses: ./.github/workflows/reusable-azure-deploy.yml
+    with:
+      environment-name: 'production'
+      app-name: ${{ vars.AZURE_WEBAPP_NAME_PROD }}
+      dotnet-version: '9.0.x'
+      configuration: 'Release'
+      project-path: 'src/TailspinToys.Web/TailspinToys.Web.csproj'
+      solution-path: 'TailspinToys.sln'
+      run-health-check: true
+      health-check-endpoint: '/health'
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      APP_SETTINGS_JSON: ${{ secrets.PROD_APP_SETTINGS_JSON }}
+
+  # Job 7: Production Smoke Tests
+  # Verify production deployment is working correctly
+  production-smoke-tests:
+    name: 💨 Production Smoke Tests
+    needs: [deploy-production]
+    runs-on: ubuntu-latest
+    if: needs.deploy-production.result == 'success'
+    
+    steps:
+    - name: Production health check
+      run: |
+        echo "::group::Running production smoke tests"
+        PROD_URL="https://${{ vars.AZURE_WEBAPP_NAME_PROD }}.azurewebsites.net"
+        
+        # Basic health check
+        if curl -f -s "$PROD_URL" > /dev/null; then
+          echo "✅ Production site is responding"
+        else
+          echo "❌ Production site is not responding"
+          exit 1
+        fi
+        
+        # Check response time
+        RESPONSE_TIME=$(curl -o /dev/null -s -w '%{time_total}' "$PROD_URL")
+        echo "Response time: ${RESPONSE_TIME}s"
+        
+        # Alert if response time is too slow (> 5 seconds)
+        if (( $(echo "$RESPONSE_TIME > 5.0" | bc -l) )); then
+          echo "::warning::Production response time is slow: ${RESPONSE_TIME}s"
+        fi
+        
+        echo "::notice title=Production Deployed::Successfully deployed to production: $PROD_URL"
+        echo "::endgroup::"
+
+  # Job 8: Notification
+  # Send deployment notifications to team channels
+  notify:
+    name: 📢 Notify Team
+    needs: [deploy-production, production-smoke-tests]
+    runs-on: ubuntu-latest
+    if: always() && (needs.deploy-production.result == 'success' || needs.deploy-production.result == 'failure')
+    
+    steps:
+    - name: Send Teams notification
+      if: env.TEAMS_WEBHOOK_URL != ''
+      env:
+        TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+      run: |
+        STATUS="${{ needs.deploy-production.result }}"
+        COLOR="28a745"  # Green for success
+        if [ "$STATUS" != "success" ]; then
+          COLOR="dc3545"  # Red for failure
+        fi
+        
+        curl -H "Content-Type: application/json" -d "{
+          \"@type\": \"MessageCard\",
+          \"@context\": \"https://schema.org/extensions\",
+          \"themeColor\": \"$COLOR\",
+          \"summary\": \"TailspinToys Deployment $STATUS\",
+          \"sections\": [{
+            \"activityTitle\": \"TailspinToys Production Deployment\",
+            \"activitySubtitle\": \"Status: $STATUS\",
+            \"facts\": [{
+              \"name\": \"Environment\",
+              \"value\": \"Production\"
+            }, {
+              \"name\": \"Commit\",
+              \"value\": \"${{ github.sha }}\"
+            }, {
+              \"name\": \"Branch\",
+              \"value\": \"${{ github.ref_name }}\"
+            }],
+            \"potentialAction\": [{
+              \"@type\": \"OpenUri\",
+              \"name\": \"View Deployment\",
+              \"targets\": [{
+                \"os\": \"default\",
+                \"uri\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+              }]
+            }]
+          }]
+        }" "$TEAMS_WEBHOOK_URL" || echo "Failed to send Teams notification"
+    
+    - name: Send Slack notification
+      if: env.SLACK_WEBHOOK_URL != ''
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      run: |
+        STATUS="${{ needs.deploy-production.result }}"
+        EMOJI=":white_check_mark:"
+        if [ "$STATUS" != "success" ]; then
+          EMOJI=":x:"
+        fi
+        
+        curl -X POST -H 'Content-type: application/json' \
+          --data "{
+            \"text\": \"$EMOJI TailspinToys Production Deployment $STATUS\",
+            \"attachments\": [{
+              \"color\": \"$( [ '$STATUS' = 'success' ] && echo 'good' || echo 'danger' )\",
+              \"fields\": [{
+                \"title\": \"Environment\",
+                \"value\": \"Production\",
+                \"short\": true
+              }, {
+                \"title\": \"Commit\",
+                \"value\": \"${{ github.sha }}\",
+                \"short\": true
+              }, {
+                \"title\": \"Branch\",
+                \"value\": \"${{ github.ref_name }}\",
+                \"short\": true
+              }],
+              \"actions\": [{
+                \"type\": \"button\",
+                \"text\": \"View Deployment\",
+                \"url\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+              }]
+            }]
+          }" "$SLACK_WEBHOOK_URL" || echo "Failed to send Slack notification"

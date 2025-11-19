@@ -113,15 +113,37 @@ The project uses xUnit for testing. Test files are located in the `tests/Tailspi
 
 ## 📦 Build and Deployment
 
-### Local Build
+### Local Development
 ```bash
+# Build the solution
 dotnet build --configuration Release
-```
 
-### Publishing
-```bash
+# Run the application
+cd src/TailspinToys.Web
+dotnet run
+
+# Publishing for deployment
 dotnet publish --configuration Release --output ./publish
 ```
+
+### CI/CD Pipeline
+This project includes a comprehensive CI/CD pipeline using GitHub Actions with:
+
+- ✅ **Automated deployments** to Azure App Service
+- ✅ **Multi-environment support** (development, staging, production) 
+- ✅ **PR preview environments** for testing changes
+- ✅ **Security scanning** and code quality checks
+- ✅ **Azure OIDC authentication** (no long-lived secrets)
+- ✅ **Hotfix deployment** capability for urgent fixes
+
+**📚 [Complete CI/CD Documentation](docs/README.md)**
+**🚀 [15-Minute Setup Guide](docs/quick-setup.md)**
+
+#### Quick Pipeline Status
+- **Development**: Auto-deploy from `develop` branch
+- **Staging**: Auto-deploy from `main` branch  
+- **Production**: Manual approval required from `main` branch
+- **PR Previews**: Automatic deployment slots for pull requests
 
 ## 🤝 Contributing
 

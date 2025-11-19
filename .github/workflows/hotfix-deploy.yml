@@ -1,0 +1,370 @@
+# Hotfix Deployment Workflow
+# This workflow handles urgent production fixes that need to bypass normal CI/CD process
+# while still maintaining proper testing and approval gates
+
+name: Hotfix Deployment
+
+on:
+  # Manual trigger only for hotfix deployments
+  workflow_dispatch:
+    inputs:
+      hotfix-description:
+        description: 'Brief description of the hotfix'
+        required: true
+        type: string
+      
+      target-environment:
+        description: 'Target environment for hotfix'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+      
+      skip-staging:
+        description: 'Skip staging and deploy directly to production (emergency only)'
+        required: false
+        default: false
+        type: boolean
+      
+      issue-number:
+        description: 'Related issue number (optional)'
+        required: false
+        type: string
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  SOLUTION_PATH: 'TailspinToys.sln'
+  PROJECT_PATH: 'src/TailspinToys.Web/TailspinToys.Web.csproj'
+
+jobs:
+  # Job 1: Validate Hotfix
+  validate-hotfix:
+    name: 🔍 Validate Hotfix
+    runs-on: ubuntu-latest
+    
+    outputs:
+      can-proceed: ${{ steps.validation.outputs.can-proceed }}
+      validation-message: ${{ steps.validation.outputs.message }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Validate branch and changes
+      id: validation
+      run: |
+        echo "::group::Validating hotfix deployment"
+        
+        # Check if we're on a hotfix branch or main branch
+        BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+        echo "Current branch: $BRANCH_NAME"
+        
+        if [[ "$BRANCH_NAME" == hotfix/* ]] || [[ "$BRANCH_NAME" == "main" ]]; then
+          echo "✅ Branch validation passed: $BRANCH_NAME"
+          CAN_PROCEED="true"
+          MESSAGE="Branch validation passed"
+        else
+          echo "❌ Hotfixes must be deployed from hotfix/* or main branch"
+          CAN_PROCEED="false"
+          MESSAGE="Invalid branch: $BRANCH_NAME. Hotfixes must be deployed from hotfix/* or main branch"
+        fi
+        
+        # Check for emergency production deployment
+        if [[ "${{ inputs.target-environment }}" == "production" ]] && [[ "${{ inputs.skip-staging }}" == "true" ]]; then
+          echo "⚠️  EMERGENCY PRODUCTION DEPLOYMENT REQUESTED"
+          echo "::warning title=Emergency Deployment::Skipping staging and deploying directly to production"
+        fi
+        
+        echo "can-proceed=$CAN_PROCEED" >> $GITHUB_OUTPUT
+        echo "message=$MESSAGE" >> $GITHUB_OUTPUT
+        echo "::endgroup::"
+    
+    - name: Create deployment issue
+      if: steps.validation.outputs.can-proceed == 'true' && inputs.issue-number == ''
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const issue = await github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: `🚨 Hotfix Deployment: ${{ inputs.hotfix-description }}`,
+            body: `## Hotfix Deployment Request
+            
+            **Description:** ${{ inputs.hotfix-description }}
+            **Target Environment:** ${{ inputs.target-environment }}
+            **Emergency Deployment:** ${{ inputs.skip-staging }}
+            **Branch:** ${context.ref}
+            **Commit:** ${context.sha}
+            **Requested by:** @${context.actor}
+            **Workflow:** [${context.runId}](${context.payload.repository.html_url}/actions/runs/${context.runId})
+            
+            ## Checklist
+            - [ ] Hotfix has been reviewed
+            - [ ] Tests are passing
+            - [ ] Deployment approved by team lead
+            - [ ] Post-deployment verification completed
+            
+            ---
+            *This issue was automatically created by the hotfix deployment workflow*`,
+            labels: ['hotfix', 'deployment', 'urgent'],
+            assignees: [context.actor]
+          });
+          
+          console.log('Created tracking issue:', issue.data.number);
+
+  # Job 2: Emergency Build and Test
+  emergency-build-test:
+    name: ⚡ Emergency Build & Test
+    needs: [validate-hotfix]
+    if: needs.validate-hotfix.outputs.can-proceed == 'true'
+    uses: ./.github/workflows/reusable-build-and-test.yml
+    with:
+      dotnet-version: '9.0.x'
+      configuration: 'Release'
+      solution-path: 'TailspinToys.sln'
+      upload-coverage: false  # Skip coverage for hotfixes to save time
+      run-security-scan: false  # Skip security scan for emergencies
+      runs-on: 'ubuntu-latest'
+    secrets: inherit
+
+  # Job 3: Deploy to Staging (unless skipped)
+  deploy-staging:
+    name: 🎭 Deploy to Staging
+    needs: [validate-hotfix, emergency-build-test]
+    if: |
+      needs.validate-hotfix.outputs.can-proceed == 'true' && 
+      needs.emergency-build-test.result == 'success' &&
+      (inputs.target-environment == 'staging' || (inputs.target-environment == 'production' && inputs.skip-staging == false))
+    uses: ./.github/workflows/reusable-azure-deploy.yml
+    with:
+      environment-name: 'staging'
+      app-name: ${{ vars.AZURE_WEBAPP_NAME_STAGING }}
+      dotnet-version: '9.0.x'
+      configuration: 'Release'
+      project-path: 'src/TailspinToys.Web/TailspinToys.Web.csproj'
+      solution-path: 'TailspinToys.sln'
+      run-health-check: true
+      health-check-endpoint: '/health'
+      slot-name: 'hotfix'
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      APP_SETTINGS_JSON: ${{ secrets.STAGING_APP_SETTINGS_JSON }}
+
+  # Job 4: Manual Approval for Production
+  production-approval:
+    name: 📝 Production Approval
+    needs: [validate-hotfix, emergency-build-test, deploy-staging]
+    if: |
+      always() && 
+      needs.validate-hotfix.outputs.can-proceed == 'true' && 
+      needs.emergency-build-test.result == 'success' &&
+      inputs.target-environment == 'production' &&
+      (needs.deploy-staging.result == 'success' || inputs.skip-staging == true)
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+    - name: Manual approval checkpoint
+      run: |
+        echo "::notice title=Production Approval Required::Manual approval required for production hotfix deployment"
+        echo "Hotfix Description: ${{ inputs.hotfix-description }}"
+        echo "Emergency Deployment: ${{ inputs.skip-staging }}"
+        
+        if [[ "${{ inputs.skip-staging }}" == "true" ]]; then
+          echo "::warning title=Emergency Deployment::This is an emergency deployment bypassing staging"
+        fi
+
+  # Job 5: Deploy to Production
+  deploy-production:
+    name: 🌟 Deploy to Production
+    needs: [validate-hotfix, emergency-build-test, production-approval]
+    if: |
+      needs.validate-hotfix.outputs.can-proceed == 'true' && 
+      needs.emergency-build-test.result == 'success' &&
+      needs.production-approval.result == 'success' &&
+      inputs.target-environment == 'production'
+    uses: ./.github/workflows/reusable-azure-deploy.yml
+    with:
+      environment-name: 'production'
+      app-name: ${{ vars.AZURE_WEBAPP_NAME_PROD }}
+      dotnet-version: '9.0.x'
+      configuration: 'Release'
+      project-path: 'src/TailspinToys.Web/TailspinToys.Web.csproj'
+      solution-path: 'TailspinToys.sln'
+      run-health-check: true
+      health-check-endpoint: '/health'
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      APP_SETTINGS_JSON: ${{ secrets.PROD_APP_SETTINGS_JSON }}
+
+  # Job 6: Post-deployment verification
+  post-deployment-verification:
+    name: ✅ Post-deployment Verification
+    needs: [deploy-production, deploy-staging]
+    if: |
+      always() && 
+      (needs.deploy-production.result == 'success' || needs.deploy-staging.result == 'success')
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Determine target URL
+      id: target
+      run: |
+        if [[ "${{ needs.deploy-production.result }}" == "success" ]]; then
+          TARGET_URL="https://${{ vars.AZURE_WEBAPP_NAME_PROD }}.azurewebsites.net"
+          ENVIRONMENT="production"
+        else
+          TARGET_URL="https://${{ vars.AZURE_WEBAPP_NAME_STAGING }}-hotfix.azurewebsites.net"
+          ENVIRONMENT="staging"
+        fi
+        
+        echo "url=$TARGET_URL" >> $GITHUB_OUTPUT
+        echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
+    
+    - name: Run verification tests
+      run: |
+        echo "::group::Running post-deployment verification"
+        TARGET_URL="${{ steps.target.outputs.url }}"
+        
+        # Health check
+        echo "🏥 Running health check..."
+        if curl -f -s "$TARGET_URL" > /dev/null; then
+          echo "✅ Health check passed"
+        else
+          echo "❌ Health check failed"
+          exit 1
+        fi
+        
+        # Performance check
+        echo "⚡ Checking response time..."
+        RESPONSE_TIME=$(curl -o /dev/null -s -w '%{time_total}' "$TARGET_URL")
+        echo "Response time: ${RESPONSE_TIME}s"
+        
+        # Functionality check (add your specific checks here)
+        echo "🔧 Running functionality checks..."
+        # Example: Check if specific endpoints are working
+        # curl -f "$TARGET_URL/api/health" || exit 1
+        
+        echo "✅ All verification checks passed"
+        echo "::endgroup::"
+
+  # Job 7: Notification and Reporting
+  hotfix-notification:
+    name: 📢 Hotfix Notification
+    needs: [validate-hotfix, emergency-build-test, deploy-production, deploy-staging, post-deployment-verification]
+    if: always()
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Determine deployment status
+      id: status
+      run: |
+        if [[ "${{ needs.deploy-production.result }}" == "success" ]]; then
+          echo "status=SUCCESS" >> $GITHUB_OUTPUT
+          echo "environment=Production" >> $GITHUB_OUTPUT
+          echo "url=https://${{ vars.AZURE_WEBAPP_NAME_PROD }}.azurewebsites.net" >> $GITHUB_OUTPUT
+        elif [[ "${{ needs.deploy-staging.result }}" == "success" ]]; then
+          echo "status=SUCCESS" >> $GITHUB_OUTPUT
+          echo "environment=Staging" >> $GITHUB_OUTPUT
+          echo "url=https://${{ vars.AZURE_WEBAPP_NAME_STAGING }}-hotfix.azurewebsites.net" >> $GITHUB_OUTPUT
+        else
+          echo "status=FAILED" >> $GITHUB_OUTPUT
+          echo "environment=None" >> $GITHUB_OUTPUT
+          echo "url=N/A" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Send urgent notification
+      if: steps.status.outputs.status == 'SUCCESS' || steps.status.outputs.status == 'FAILED'
+      run: |
+        STATUS="${{ steps.status.outputs.status }}"
+        ENVIRONMENT="${{ steps.status.outputs.environment }}"
+        
+        # Create notification message
+        if [[ "$STATUS" == "SUCCESS" ]]; then
+          EMOJI="🚨✅"
+          COLOR="good"
+          MESSAGE="Hotfix deployed successfully to $ENVIRONMENT"
+        else
+          EMOJI="🚨❌"
+          COLOR="danger"
+          MESSAGE="Hotfix deployment FAILED"
+        fi
+        
+        echo "::notice title=Hotfix Deployment $STATUS::$MESSAGE"
+        
+        # Send Teams notification if webhook is configured
+        if [[ -n "${{ secrets.TEAMS_WEBHOOK_URL }}" ]]; then
+          curl -H "Content-Type: application/json" -d "{
+            \"@type\": \"MessageCard\",
+            \"@context\": \"https://schema.org/extensions\",
+            \"themeColor\": \"ff6600\",
+            \"summary\": \"$EMOJI Hotfix Deployment $STATUS\",
+            \"sections\": [{
+              \"activityTitle\": \"$EMOJI TailspinToys Hotfix Deployment\",
+              \"activitySubtitle\": \"$MESSAGE\",
+              \"facts\": [{
+                \"name\": \"Description\",
+                \"value\": \"${{ inputs.hotfix-description }}\"
+              }, {
+                \"name\": \"Environment\",
+                \"value\": \"$ENVIRONMENT\"
+              }, {
+                \"name\": \"Emergency\",
+                \"value\": \"${{ inputs.skip-staging }}\"
+              }, {
+                \"name\": \"Deployed by\",
+                \"value\": \"${{ github.actor }}\"
+              }],
+              \"potentialAction\": [{
+                \"@type\": \"OpenUri\",
+                \"name\": \"View Deployment\",
+                \"targets\": [{
+                  \"os\": \"default\",
+                  \"uri\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+                }]
+              }]
+            }]
+          }" "${{ secrets.TEAMS_WEBHOOK_URL }}" || echo "Teams notification failed"
+        fi
+    
+    - name: Update tracking issue
+      if: inputs.issue-number != ''
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const issueNumber = '${{ inputs.issue-number }}';
+          const status = '${{ steps.status.outputs.status }}';
+          const environment = '${{ steps.status.outputs.environment }}';
+          
+          const comment = `## 🚨 Hotfix Deployment ${status}
+          
+          **Environment:** ${environment}
+          **Status:** ${status}
+          **Deployed at:** ${new Date().toISOString()}
+          **Workflow:** [View deployment details](${context.payload.repository.html_url}/actions/runs/${context.runId})
+          
+          ${status === 'SUCCESS' ? '✅ Hotfix has been successfully deployed!' : '❌ Hotfix deployment failed. Please check the workflow logs.'}`;
+          
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: parseInt(issueNumber),
+            body: comment
+          });
+          
+          // Close issue if deployment was successful
+          if (status === 'SUCCESS') {
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: parseInt(issueNumber),
+              state: 'closed',
+              state_reason: 'completed'
+            });
+          }

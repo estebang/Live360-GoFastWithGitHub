@@ -1,0 +1,270 @@
+# Pull Request Preview Deployment
+# This workflow creates temporary deployment environments for pull requests
+# allowing reviewers to test changes before merging
+
+name: PR Preview Deployment
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main, develop]
+  
+  # Allow manual cleanup of PR previews
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'deploy'
+        type: choice
+        options:
+        - deploy
+        - cleanup
+      
+      pr-number:
+        description: 'PR number for cleanup'
+        required: false
+        type: string
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  SOLUTION_PATH: 'TailspinToys.sln'
+  PROJECT_PATH: 'src/TailspinToys.Web/TailspinToys.Web.csproj'
+
+# Ensure only one deployment per PR
+concurrency:
+  group: pr-preview-${{ github.event.pull_request.number || inputs.pr-number }}
+  cancel-in-progress: true
+
+jobs:
+  # Job 1: Build and Test PR Changes
+  build-and-test-pr:
+    name: 🔨 Build & Test PR
+    if: github.event_name == 'pull_request' || inputs.action == 'deploy'
+    uses: ./.github/workflows/reusable-build-and-test.yml
+    with:
+      dotnet-version: '9.0.x'
+      configuration: 'Release'
+      solution-path: 'TailspinToys.sln'
+      upload-coverage: true
+      run-security-scan: true
+      runs-on: 'ubuntu-latest'
+    secrets: inherit
+
+  # Job 2: Deploy PR Preview
+  deploy-pr-preview:
+    name: 🚀 Deploy PR Preview
+    needs: [build-and-test-pr]
+    if: |
+      (github.event_name == 'pull_request' && needs.build-and-test-pr.result == 'success') ||
+      (github.event_name == 'workflow_dispatch' && inputs.action == 'deploy')
+    runs-on: ubuntu-latest
+    
+    environment: 
+      name: pr-preview-${{ github.event.pull_request.number || inputs.pr-number }}
+      url: https://${{ vars.AZURE_WEBAPP_NAME_DEV }}-pr${{ github.event.pull_request.number || inputs.pr-number }}.azurewebsites.net
+    
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+    
+    outputs:
+      preview-url: ${{ steps.deploy.outputs.deployment-url }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Cache NuGet packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+    
+    - name: Restore and build
+      run: |
+        dotnet restore ${{ env.SOLUTION_PATH }}
+        dotnet build ${{ env.SOLUTION_PATH }} --no-restore --configuration Release
+    
+    - name: Publish application
+      run: |
+        dotnet publish ${{ env.PROJECT_PATH }} \
+          --no-build \
+          --configuration Release \
+          --output ./publish
+    
+    - name: Azure Login (OIDC)
+      uses: azure/login@v2
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    
+    # Create or update deployment slot for this PR
+    - name: Create/Update deployment slot
+      id: slot
+      run: |
+        PR_NUMBER="${{ github.event.pull_request.number || inputs.pr-number }}"
+        SLOT_NAME="pr${PR_NUMBER}"
+        APP_NAME="${{ vars.AZURE_WEBAPP_NAME_DEV }}"
+        RESOURCE_GROUP=$(az webapp show --name "$APP_NAME" --query resourceGroup -o tsv)
+        
+        echo "slot-name=$SLOT_NAME" >> $GITHUB_OUTPUT
+        echo "app-name=$APP_NAME" >> $GITHUB_OUTPUT
+        
+        # Check if slot exists, create if not
+        if ! az webapp deployment slot list --name "$APP_NAME" --resource-group "$RESOURCE_GROUP" --query "[?name=='$SLOT_NAME']" -o tsv | grep -q "$SLOT_NAME"; then
+          echo "Creating new deployment slot: $SLOT_NAME"
+          az webapp deployment slot create \
+            --name "$APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --slot "$SLOT_NAME"
+        else
+          echo "Using existing deployment slot: $SLOT_NAME"
+        fi
+    
+    # Deploy to the PR-specific slot
+    - name: Deploy to PR slot
+      id: deploy
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: ${{ steps.slot.outputs.app-name }}
+        package: ./publish
+        slot-name: ${{ steps.slot.outputs.slot-name }}
+    
+    # Update PR with deployment information
+    - name: Update PR comment
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const prNumber = ${{ github.event.pull_request.number || inputs.pr-number }};
+          const previewUrl = `https://${{ steps.slot.outputs.app-name }}-${{ steps.slot.outputs.slot-name }}.azurewebsites.net`;
+          
+          // Find existing comment or create new one
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: prNumber,
+          });
+          
+          const botComment = comments.find(comment => 
+            comment.user.type === 'Bot' && 
+            comment.body.includes('🚀 PR Preview Deployment')
+          );
+          
+          const commentBody = `## 🚀 PR Preview Deployment
+          
+          ✅ **Preview environment is ready!**
+          
+          | 📋 Details | 📝 Value |
+          |------------|----------|
+          | **🌐 Preview URL** | [${previewUrl}](${previewUrl}) |
+          | **📦 Commit** | \`${{ github.event.pull_request.head.sha || github.sha }}\` |
+          | **🔧 Environment** | \`pr-preview-${prNumber}\` |
+          | **⏰ Updated** | ${new Date().toISOString()} |
+          
+          ### 🧪 Test Your Changes
+          - Click the preview URL above to test your changes
+          - The environment will be automatically updated with new commits
+          - Environment will be cleaned up when PR is closed/merged
+          
+          ### 🔗 Useful Links
+          - [📊 Workflow Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          - [🏗️ Azure Portal](https://portal.azure.com)
+          
+          ---
+          *This comment is automatically updated by the CI/CD pipeline*`;
+          
+          if (botComment) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: botComment.id,
+              body: commentBody
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: commentBody
+            });
+          }
+
+  # Job 3: Cleanup PR Preview (when PR is closed)
+  cleanup-pr-preview:
+    name: 🧹 Cleanup PR Preview
+    if: |
+      (github.event.action == 'closed') ||
+      (github.event_name == 'workflow_dispatch' && inputs.action == 'cleanup')
+    runs-on: ubuntu-latest
+    
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+    
+    steps:
+    - name: Azure Login (OIDC)
+      uses: azure/login@v2
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    
+    - name: Delete deployment slot
+      run: |
+        PR_NUMBER="${{ github.event.pull_request.number || inputs.pr-number }}"
+        SLOT_NAME="pr${PR_NUMBER}"
+        APP_NAME="${{ vars.AZURE_WEBAPP_NAME_DEV }}"
+        RESOURCE_GROUP=$(az webapp show --name "$APP_NAME" --query resourceGroup -o tsv)
+        
+        # Check if slot exists and delete it
+        if az webapp deployment slot list --name "$APP_NAME" --resource-group "$RESOURCE_GROUP" --query "[?name=='$SLOT_NAME']" -o tsv | grep -q "$SLOT_NAME"; then
+          echo "Deleting deployment slot: $SLOT_NAME"
+          az webapp deployment slot delete \
+            --name "$APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --slot "$SLOT_NAME" \
+            --yes
+          echo "::notice title=Cleanup Complete::Deleted PR preview environment for PR #${PR_NUMBER}"
+        else
+          echo "::warning title=Cleanup Skipped::No deployment slot found for PR #${PR_NUMBER}"
+        fi
+    
+    # Update PR with cleanup notification
+    - name: Update PR with cleanup notification
+      uses: actions/github-script@v7
+      if: github.event.action == 'closed'
+      with:
+        script: |
+          const prNumber = ${{ github.event.pull_request.number }};
+          
+          const commentBody = `## 🧹 PR Preview Cleanup
+          
+          ✅ **Preview environment has been cleaned up**
+          
+          The temporary deployment environment for this PR has been automatically removed.
+          
+          | 📋 Details | 📝 Value |
+          |------------|----------|
+          | **🗑️ Action** | Environment Cleanup |
+          | **📦 PR Number** | #${prNumber} |
+          | **⏰ Cleaned up** | ${new Date().toISOString()} |
+          
+          Thank you for your contribution! 🎉`;
+          
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: prNumber,
+            body: commentBody
+          });

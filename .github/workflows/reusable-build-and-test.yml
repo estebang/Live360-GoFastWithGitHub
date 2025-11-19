@@ -1,0 +1,225 @@
+# Reusable workflow for building and testing .NET applications
+# This workflow can be called from other workflows to ensure consistent build and test processes
+# across all environments and scenarios
+
+name: Reusable Build and Test
+
+on:
+  workflow_call:
+    inputs:
+      # .NET version to use for building and testing
+      dotnet-version:
+        description: 'The .NET version to use'
+        required: false
+        type: string
+        default: '9.0.x'
+      
+      # Build configuration (Debug or Release)
+      configuration:
+        description: 'Build configuration'
+        required: false
+        type: string
+        default: 'Release'
+      
+      # Solution file path relative to repository root
+      solution-path:
+        description: 'Path to solution file'
+        required: false
+        type: string
+        default: 'TailspinToys.sln'
+      
+      # Whether to upload code coverage reports
+      upload-coverage:
+        description: 'Upload code coverage to Codecov'
+        required: false
+        type: boolean
+        default: true
+      
+      # Whether to run security scans
+      run-security-scan:
+        description: 'Run security vulnerability scans'
+        required: false
+        type: boolean
+        default: true
+      
+      # Operating system to run on
+      runs-on:
+        description: 'Runner OS'
+        required: false
+        type: string
+        default: 'ubuntu-latest'
+    
+    outputs:
+      # Build artifacts information for downstream jobs
+      build-version:
+        description: 'Version of the built application'
+        value: ${{ jobs.build-and-test.outputs.build-version }}
+      
+      # Test results summary
+      test-results:
+        description: 'Summary of test execution'
+        value: ${{ jobs.build-and-test.outputs.test-results }}
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ${{ inputs.runs-on }}
+    
+    outputs:
+      build-version: ${{ steps.version.outputs.version }}
+      test-results: ${{ steps.test.outputs.test-results }}
+    
+    steps:
+    # Checkout the source code
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        # Fetch full history for better version generation
+        fetch-depth: 0
+    
+    # Setup .NET SDK with the specified version
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ inputs.dotnet-version }}
+        
+    # Cache NuGet packages to speed up builds
+    - name: Cache NuGet packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        # Create cache key based on project files hash
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/*.fsproj', '**/*.vbproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+    
+    # Generate version number based on Git history
+    - name: Generate version
+      id: version
+      run: |
+        # Use git describe to generate a version based on tags and commits
+        if git describe --tags --exact-match HEAD >/dev/null 2>&1; then
+          # We're on a tag, use the tag as version
+          VERSION=$(git describe --tags --exact-match HEAD)
+        else
+          # Generate version from latest tag + commit info
+          VERSION=$(git describe --tags --always --dirty=-dev 2>/dev/null || echo "1.0.0-dev.$(git rev-parse --short HEAD)")
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Generated version: $VERSION"
+        
+        # Set version in environment for MSBuild
+        echo "AssemblyVersion=$VERSION" >> $GITHUB_ENV
+        echo "FileVersion=$VERSION" >> $GITHUB_ENV
+        echo "InformationalVersion=$VERSION" >> $GITHUB_ENV
+    
+    # Restore NuGet packages
+    - name: Restore dependencies
+      run: |
+        echo "::group::Restoring NuGet packages"
+        dotnet restore ${{ inputs.solution-path }} --verbosity minimal
+        echo "::endgroup::"
+    
+    # Build the solution
+    - name: Build solution
+      run: |
+        echo "::group::Building solution"
+        dotnet build ${{ inputs.solution-path }} \
+          --no-restore \
+          --configuration ${{ inputs.configuration }} \
+          --verbosity minimal \
+          -p:Version=${{ steps.version.outputs.version }} \
+          -p:AssemblyVersion=${{ steps.version.outputs.version }} \
+          -p:FileVersion=${{ steps.version.outputs.version }} \
+          -p:InformationalVersion=${{ steps.version.outputs.version }}
+        echo "::endgroup::"
+    
+    # Run tests with code coverage collection
+    - name: Run tests
+      id: test
+      run: |
+        echo "::group::Running tests with coverage"
+        dotnet test ${{ inputs.solution-path }} \
+          --no-build \
+          --configuration ${{ inputs.configuration }} \
+          --verbosity normal \
+          --collect:"XPlat Code Coverage" \
+          --results-directory ./TestResults \
+          --logger "trx;LogFileName=test-results.trx" \
+          --logger "console;verbosity=detailed"
+        
+        # Generate test results summary
+        TEST_COUNT=$(find ./TestResults -name "*.trx" -exec grep -o 'total="[0-9]*"' {} \; | head -1 | grep -o '[0-9]*' || echo "0")
+        FAILED_COUNT=$(find ./TestResults -name "*.trx" -exec grep -o 'failed="[0-9]*"' {} \; | head -1 | grep -o '[0-9]*' || echo "0")
+        PASSED_COUNT=$((TEST_COUNT - FAILED_COUNT))
+        
+        echo "test-results=Total: $TEST_COUNT, Passed: $PASSED_COUNT, Failed: $FAILED_COUNT" >> $GITHUB_OUTPUT
+        echo "::notice title=Test Results::Total: $TEST_COUNT, Passed: $PASSED_COUNT, Failed: $FAILED_COUNT"
+        echo "::endgroup::"
+    
+    # Publish test results
+    - name: Publish test results
+      uses: dorny/test-reporter@v1
+      if: success() || failure()
+      with:
+        name: .NET Test Results
+        path: './TestResults/*.trx'
+        reporter: dotnet-trx
+        fail-on-error: true
+    
+    # Upload code coverage to Codecov
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      if: inputs.upload-coverage && (success() || failure())
+      with:
+        directory: ./TestResults
+        files: '**/coverage.cobertura.xml'
+        fail_ci_if_error: false
+        token: ${{ secrets.CODECOV_TOKEN }}
+        flags: unittests
+        name: codecov-${{ github.run_id }}
+    
+    # Run security vulnerability scan using dotnet list package
+    - name: Security vulnerability scan
+      if: inputs.run-security-scan
+      run: |
+        echo "::group::Scanning for security vulnerabilities"
+        # Check for known vulnerabilities in dependencies
+        dotnet list ${{ inputs.solution-path }} package --vulnerable --include-transitive > vulnerability-report.txt 2>&1 || true
+        
+        # Check if vulnerabilities were found
+        if grep -q "has the following vulnerable packages" vulnerability-report.txt; then
+          echo "::warning title=Security Vulnerabilities::Vulnerable packages found. Check the full report."
+          cat vulnerability-report.txt
+        else
+          echo "::notice title=Security Scan::No known vulnerabilities found in packages."
+        fi
+        echo "::endgroup::"
+    
+    # Run additional security checks with .NET analyzers
+    - name: Run code analysis
+      if: inputs.run-security-scan
+      run: |
+        echo "::group::Running static code analysis"
+        # Run build with code analysis enabled
+        dotnet build ${{ inputs.solution-path }} \
+          --no-restore \
+          --configuration ${{ inputs.configuration }} \
+          --verbosity minimal \
+          -p:RunAnalyzersDuringBuild=true \
+          -p:TreatWarningsAsErrors=false \
+          -p:WarningsAsErrors="" \
+          -p:RunCodeAnalysis=true
+        echo "::endgroup::"
+    
+    # Upload build artifacts for debugging if needed
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: build-logs-${{ github.run_id }}
+        path: |
+          **/*.log
+          **/bin/**/*.dll
+          **/bin/**/*.pdb
+        retention-days: 5

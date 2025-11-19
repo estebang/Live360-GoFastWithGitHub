@@ -1,0 +1,302 @@
+# Reusable workflow for deploying .NET applications to Azure
+# This workflow handles Azure login via OIDC and deployment to Azure App Service
+# Can be used for multiple environments with different configurations
+
+name: Reusable Azure Deployment
+
+on:
+  workflow_call:
+    inputs:
+      # Environment name (dev, staging, prod)
+      environment-name:
+        description: 'Target environment name'
+        required: true
+        type: string
+      
+      # Azure App Service name
+      app-name:
+        description: 'Azure App Service name'
+        required: true
+        type: string
+      
+      # .NET version to use for publishing
+      dotnet-version:
+        description: 'The .NET version to use'
+        required: false
+        type: string
+        default: '9.0.x'
+      
+      # Build configuration
+      configuration:
+        description: 'Build configuration'
+        required: false
+        type: string
+        default: 'Release'
+      
+      # Project path to publish
+      project-path:
+        description: 'Path to project file to publish'
+        required: false
+        type: string
+        default: 'src/TailspinToys.Web/TailspinToys.Web.csproj'
+      
+      # Solution path for restore and build
+      solution-path:
+        description: 'Path to solution file'
+        required: false
+        type: string
+        default: 'TailspinToys.sln'
+      
+      # Whether to run health checks after deployment
+      run-health-check:
+        description: 'Run health checks after deployment'
+        required: false
+        type: boolean
+        default: true
+      
+      # Health check endpoint
+      health-check-endpoint:
+        description: 'Health check endpoint path'
+        required: false
+        type: string
+        default: '/'
+      
+      # Deployment slot (for blue-green deployments)
+      slot-name:
+        description: 'Deployment slot name'
+        required: false
+        type: string
+        default: ''
+      
+      # Whether to use startup command
+      startup-command:
+        description: 'Custom startup command'
+        required: false
+        type: string
+        default: ''
+    
+    secrets:
+      # Azure OIDC configuration
+      AZURE_CLIENT_ID:
+        description: 'Azure Client ID for OIDC authentication'
+        required: true
+      AZURE_TENANT_ID:
+        description: 'Azure Tenant ID for OIDC authentication'
+        required: true
+      AZURE_SUBSCRIPTION_ID:
+        description: 'Azure Subscription ID for OIDC authentication'
+        required: true
+      
+      # Optional: App settings for environment-specific configuration
+      APP_SETTINGS_JSON:
+        description: 'JSON string of app settings to configure'
+        required: false
+    
+    outputs:
+      # Deployment information
+      deployment-url:
+        description: 'URL of the deployed application'
+        value: ${{ jobs.deploy.outputs.deployment-url }}
+      
+      deployment-status:
+        description: 'Status of the deployment'
+        value: ${{ jobs.deploy.outputs.deployment-status }}
+
+jobs:
+  deploy:
+    name: Deploy to ${{ inputs.environment-name }}
+    runs-on: ubuntu-latest
+    
+    # Use the specified environment for approval gates and secrets
+    environment: ${{ inputs.environment-name }}
+    
+    # Required permissions for OIDC authentication
+    permissions:
+      id-token: write      # Required for OIDC token generation
+      contents: read       # Required to read repository contents
+      actions: read        # Required to read workflow metadata
+    
+    outputs:
+      deployment-url: ${{ steps.deploy-info.outputs.url }}
+      deployment-status: success
+    
+    steps:
+    # Checkout source code
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    # Setup .NET SDK
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ inputs.dotnet-version }}
+    
+    # Cache NuGet packages
+    - name: Cache NuGet packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/*.fsproj', '**/*.vbproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+    
+    # Generate build version
+    - name: Generate version
+      id: version
+      run: |
+        if git describe --tags --exact-match HEAD >/dev/null 2>&1; then
+          VERSION=$(git describe --tags --exact-match HEAD)
+        else
+          VERSION=$(git describe --tags --always --dirty=-dev 2>/dev/null || echo "1.0.0-dev.$(git rev-parse --short HEAD)")
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Generated version: $VERSION"
+    
+    # Restore dependencies
+    - name: Restore dependencies
+      run: |
+        echo "::group::Restoring dependencies"
+        dotnet restore ${{ inputs.solution-path }} --verbosity minimal
+        echo "::endgroup::"
+    
+    # Build the solution
+    - name: Build solution
+      run: |
+        echo "::group::Building solution"
+        dotnet build ${{ inputs.solution-path }} \
+          --no-restore \
+          --configuration ${{ inputs.configuration }} \
+          --verbosity minimal \
+          -p:Version=${{ steps.version.outputs.version }}
+        echo "::endgroup::"
+    
+    # Publish the application
+    - name: Publish application
+      run: |
+        echo "::group::Publishing application"
+        dotnet publish ${{ inputs.project-path }} \
+          --no-build \
+          --configuration ${{ inputs.configuration }} \
+          --output ./publish \
+          -p:Version=${{ steps.version.outputs.version }} \
+          -p:EnvironmentName=${{ inputs.environment-name }}
+        
+        # Create deployment info file
+        echo "{" > ./publish/deployment-info.json
+        echo "  \"version\": \"${{ steps.version.outputs.version }}\"," >> ./publish/deployment-info.json
+        echo "  \"environment\": \"${{ inputs.environment-name }}\"," >> ./publish/deployment-info.json
+        echo "  \"buildNumber\": \"${{ github.run_number }}\"," >> ./publish/deployment-info.json
+        echo "  \"commit\": \"${{ github.sha }}\"," >> ./publish/deployment-info.json
+        echo "  \"deployedAt\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"" >> ./publish/deployment-info.json
+        echo "}" >> ./publish/deployment-info.json
+        
+        echo "::notice title=Application Published::Successfully published application for ${{ inputs.environment-name }}"
+        echo "::endgroup::"
+    
+    # Login to Azure using OIDC
+    - name: Azure Login (OIDC)
+      uses: azure/login@v2
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    
+    # Configure app settings if provided
+    - name: Configure app settings
+      env:
+        APP_SETTINGS_JSON: ${{ secrets.APP_SETTINGS_JSON }}
+      if: env.APP_SETTINGS_JSON != ''
+      run: |
+        echo "::group::Configuring app settings"
+        # Parse and set app settings from JSON
+        echo '${{ secrets.APP_SETTINGS_JSON }}' | jq -r 'to_entries[] | "--settings \(.key)=\(.value)"' | tr '\n' ' ' > settings.txt
+        
+        if [ -s settings.txt ]; then
+          SLOT_PARAM=""
+          if [ -n "${{ inputs.slot-name }}" ]; then
+            SLOT_PARAM="--slot ${{ inputs.slot-name }}"
+          fi
+          
+          az webapp config appsettings set \
+            --name ${{ inputs.app-name }} \
+            --resource-group $(az webapp show --name ${{ inputs.app-name }} --query resourceGroup -o tsv) \
+            $SLOT_PARAM \
+            $(cat settings.txt)
+          
+          echo "::notice title=App Settings::Configured app settings for ${{ inputs.environment-name }}"
+        fi
+        echo "::endgroup::"
+    
+    # Deploy to Azure App Service
+    - name: Deploy to Azure App Service
+      id: deploy
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: ${{ inputs.app-name }}
+        package: ./publish
+        slot-name: ${{ inputs.slot-name }}
+        startup-command: ${{ inputs.startup-command }}
+    
+    # Get deployment information
+    - name: Get deployment info
+      id: deploy-info
+      run: |
+        # Get the app URL
+        if [ -n "${{ inputs.slot-name }}" ]; then
+          APP_URL="https://${{ inputs.app-name }}-${{ inputs.slot-name }}.azurewebsites.net"
+        else
+          APP_URL="https://${{ inputs.app-name }}.azurewebsites.net"
+        fi
+        
+        echo "url=$APP_URL" >> $GITHUB_OUTPUT
+        echo "::notice title=Deployment Complete::Application deployed to $APP_URL"
+    
+    # Run health check
+    - name: Health check
+      if: inputs.run-health-check
+      run: |
+        echo "::group::Running health check"
+        APP_URL="${{ steps.deploy-info.outputs.url }}"
+        HEALTH_ENDPOINT="${APP_URL}${{ inputs.health-check-endpoint }}"
+        
+        echo "Checking health at: $HEALTH_ENDPOINT"
+        
+        # Wait for app to start (up to 5 minutes)
+        for i in {1..30}; do
+          if curl -f -s -o /dev/null -w "%{http_code}" "$HEALTH_ENDPOINT" | grep -q "200"; then
+            echo "✅ Health check passed on attempt $i"
+            echo "::notice title=Health Check::Application is healthy and responding"
+            break
+          else
+            echo "⏳ Attempt $i failed, waiting 10 seconds..."
+            if [ $i -eq 30 ]; then
+              echo "❌ Health check failed after 30 attempts"
+              echo "::error title=Health Check Failed::Application failed to respond within 5 minutes"
+              exit 1
+            fi
+            sleep 10
+          fi
+        done
+        echo "::endgroup::"
+    
+    # Create deployment summary
+    - name: Create deployment summary
+      run: |
+        cat >> $GITHUB_STEP_SUMMARY << EOF
+        ## 🚀 Deployment Summary
+        
+        | Property | Value |
+        |----------|-------|
+        | **Environment** | \`${{ inputs.environment-name }}\` |
+        | **Application** | \`${{ inputs.app-name }}\` |
+        | **Version** | \`${{ steps.version.outputs.version }}\` |
+        | **URL** | [${{ steps.deploy-info.outputs.url }}](${{ steps.deploy-info.outputs.url }}) |
+        | **Commit** | \`${{ github.sha }}\` |
+        | **Build Number** | \`${{ github.run_number }}\` |
+        | **Deployed At** | \`$(date -u +"%Y-%m-%d %H:%M:%S UTC")\` |
+        
+        ### 🔗 Quick Links
+        - [Application URL](${{ steps.deploy-info.outputs.url }})
+        - [Azure Portal](https://portal.azure.com/#@${{ secrets.AZURE_TENANT_ID }}/resource/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/$(az webapp show --name ${{ inputs.app-name }} --query resourceGroup -o tsv)/providers/Microsoft.Web/sites/${{ inputs.app-name }}/appServices)
+        - [Commit Details](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
+        EOF
