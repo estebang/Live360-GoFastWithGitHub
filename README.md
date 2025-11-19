@@ -1,6 +1,6 @@
 # TailspinToys
 
-A modern ASP.NET Core web application for managing fundraising campaigns built with .NET 8 and Entity Framework Core.
+A modern ASP.NET Core web application for managing fundraising campaigns built with .NET 9 and Entity Framework Core.
 
 ## 📋 Overview
 
