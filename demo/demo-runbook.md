@@ -261,6 +261,10 @@ Use pre-built agent from `demo/custom-actions-agent` branch
 
 # 🎉 DEMO FINALE — Idea → Azure
 
+```
+Improve the look & feel of the contact page to match the rest of the application. Include my email address: abc@email.com and a link to my LinkedIn profile: 
+```
+
 **Narrative:**
 "We went from idea to Azure deployment using GitHub Actions, Copilot, Agent Mode, MCP, and Custom Agents — a fully agentic delivery workflow."
 
