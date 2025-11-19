@@ -1,0 +1,145 @@
+name: Matrix Build
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - '**.csproj'
+      - '**.sln'
+  workflow_dispatch:
+    inputs:
+      include-preview:
+        description: 'Include preview .NET versions'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  matrix-strategy:
+    name: Define Matrix Strategy
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    
+    steps:
+    - name: Set matrix strategy
+      id: set-matrix
+      run: |
+        if [ "${{ github.event.inputs.include-preview }}" == "true" ]; then
+          echo 'matrix={"os":["ubuntu-latest","windows-latest","macos-latest"],"dotnet-version":["8.0.x","9.0.x"]}' >> $GITHUB_OUTPUT
+        else
+          echo 'matrix={"os":["ubuntu-latest","windows-latest"],"dotnet-version":["9.0.x"]}' >> $GITHUB_OUTPUT
+        fi
+
+  build-matrix:
+    name: Build on ${{ matrix.os }} - .NET ${{ matrix.dotnet-version }}
+    needs: matrix-strategy
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.matrix-strategy.outputs.matrix) }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Setup .NET ${{ matrix.dotnet-version }}
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ matrix.dotnet-version }}
+        cache: true
+        cache-dependency-path: '**/*.csproj'
+    
+    - name: Display .NET info
+      run: dotnet --info
+    
+    - name: Restore dependencies
+      run: dotnet restore TailspinToys.sln --verbosity minimal
+    
+    - name: Build (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        dotnet build TailspinToys.sln `
+          --no-restore `
+          --configuration Release `
+          --verbosity minimal `
+          /p:ContinuousIntegrationBuild=true
+    
+    - name: Build (Unix)
+      if: runner.os != 'Windows'
+      run: |
+        dotnet build TailspinToys.sln \
+          --no-restore \
+          --configuration Release \
+          --verbosity minimal \
+          /p:ContinuousIntegrationBuild=true
+    
+    - name: Test (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        dotnet test TailspinToys.sln `
+          --no-build `
+          --configuration Release `
+          --verbosity normal `
+          --logger "trx;LogFileName=test-results-${{ matrix.os }}-${{ matrix.dotnet-version }}.trx" `
+          --collect:"XPlat Code Coverage" `
+          --results-directory ./coverage
+    
+    - name: Test (Unix)
+      if: runner.os != 'Windows'
+      run: |
+        dotnet test TailspinToys.sln \
+          --no-build \
+          --configuration Release \
+          --verbosity normal \
+          --logger "trx;LogFileName=test-results-${{ matrix.os }}-${{ matrix.dotnet-version }}.trx" \
+          --collect:"XPlat Code Coverage" \
+          --results-directory ./coverage
+    
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results-${{ matrix.os }}-${{ matrix.dotnet-version }}-${{ github.run_number }}
+        path: |
+          **/test-results-*.trx
+          ./coverage/**/*.xml
+        retention-days: 7
+
+  matrix-summary:
+    name: Matrix Build Summary
+    runs-on: ubuntu-latest
+    needs: build-matrix
+    if: always()
+    
+    steps:
+    - name: Generate summary
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const buildStatus = '${{ needs.build-matrix.result }}';
+          const emoji = buildStatus === 'success' ? '✅' : '❌';
+          
+          core.summary
+            .addHeading('Matrix Build Results')
+            .addRaw(`\n${emoji} **Overall Status:** ${buildStatus}\n\n`)
+            .addRaw('All platform and version combinations have been tested.\n')
+            .write();
+          
+          if (buildStatus !== 'success') {
+            core.setFailed('One or more matrix builds failed');
+          }

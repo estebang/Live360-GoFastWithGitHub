@@ -1,0 +1,84 @@
+name: Auto Label PRs
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  label:
+    name: Auto Label
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Auto label based on files
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const pr = context.payload.pull_request;
+          const labels = [];
+          
+          // Get changed files
+          const { data: files } = await github.rest.pulls.listFiles({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            pull_number: pr.number,
+          });
+          
+          const changedFiles = files.map(f => f.filename);
+          
+          // Categorize changes
+          const hasWorkflowChanges = changedFiles.some(f => f.startsWith('.github/workflows/'));
+          const hasSourceChanges = changedFiles.some(f => f.startsWith('src/'));
+          const hasTestChanges = changedFiles.some(f => f.startsWith('tests/'));
+          const hasDocChanges = changedFiles.some(f => f.endsWith('.md'));
+          const hasDependencyChanges = changedFiles.some(f => f.endsWith('.csproj') || f.includes('packages.'));
+          const hasConfigChanges = changedFiles.some(f => 
+            f.includes('appsettings') || 
+            f.includes('.config') || 
+            f === '.github/dependabot.yml'
+          );
+          
+          // Add labels
+          if (hasWorkflowChanges) labels.push('github-actions');
+          if (hasSourceChanges) labels.push('source-code');
+          if (hasTestChanges) labels.push('tests');
+          if (hasDocChanges) labels.push('documentation');
+          if (hasDependencyChanges) labels.push('dependencies');
+          if (hasConfigChanges) labels.push('configuration');
+          
+          // Determine size label
+          const totalChanges = files.reduce((sum, f) => sum + f.additions + f.deletions, 0);
+          if (totalChanges < 50) {
+            labels.push('size/XS');
+          } else if (totalChanges < 200) {
+            labels.push('size/S');
+          } else if (totalChanges < 500) {
+            labels.push('size/M');
+          } else if (totalChanges < 1000) {
+            labels.push('size/L');
+          } else {
+            labels.push('size/XL');
+          }
+          
+          // Apply labels
+          if (labels.length > 0) {
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              labels: labels
+            });
+            
+            core.summary
+              .addHeading('Auto-applied Labels')
+              .addList(labels)
+              .write();
+          }

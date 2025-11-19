@@ -1,0 +1,145 @@
+name: Security Scan
+
+on:
+  workflow_call:
+    inputs:
+      dotnet-version:
+        description: 'The .NET version to use'
+        required: false
+        type: string
+        default: '9.0.x'
+
+jobs:
+  dependency-review:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 10
+    
+    permissions:
+      contents: read
+      pull-requests: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Dependency Review
+      uses: actions/dependency-review-action@v4
+      with:
+        fail-on-severity: moderate
+        comment-summary-in-pr: always
+
+  code-scanning:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: csharp
+        queries: security-and-quality
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ inputs.dotnet-version }}
+        cache: true
+        cache-dependency-path: '**/*.csproj'
+    
+    - name: Restore dependencies
+      run: dotnet restore TailspinToys.sln --verbosity minimal
+    
+    - name: Build for analysis
+      run: |
+        dotnet build TailspinToys.sln \
+          --no-restore \
+          --configuration Release \
+          --verbosity minimal
+    
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:csharp"
+
+  vulnerability-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    permissions:
+      contents: read
+      security-events: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ inputs.dotnet-version }}
+        cache: true
+        cache-dependency-path: '**/*.csproj'
+    
+    - name: Restore dependencies
+      run: dotnet restore TailspinToys.sln --verbosity minimal
+    
+    - name: Run security audit
+      run: |
+        dotnet list TailspinToys.sln package --vulnerable --include-transitive 2>&1 | tee vulnerability-report.txt
+        
+        if grep -q "has the following vulnerable packages" vulnerability-report.txt; then
+          echo "### ⚠️ Vulnerable Packages Detected" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat vulnerability-report.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          exit 1
+        else
+          echo "### ✅ No Vulnerable Packages Detected" >> $GITHUB_STEP_SUMMARY
+        fi
+
+  sbom-generation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ inputs.dotnet-version }}
+        cache: true
+        cache-dependency-path: '**/*.csproj'
+    
+    - name: Generate SBOM
+      run: |
+        dotnet tool install --global Microsoft.Sbom.DotNetTool
+        mkdir -p ./sbom
+        sbom-tool generate \
+          -b ./src \
+          -bc ./src \
+          -pn TailspinToys \
+          -pv 1.0.0 \
+          -ps estebang \
+          -nsb https://github.com/estebang/Live360-GoFastWithGitHub \
+          -m ./sbom
+    
+    - name: Upload SBOM
+      uses: actions/upload-artifact@v4
+      with:
+        name: sbom-${{ github.run_number }}
+        path: ./sbom/_manifest/spdx_2.2/*.json
+        retention-days: 90

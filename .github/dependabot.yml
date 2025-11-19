@@ -1,0 +1,83 @@
+# Dependabot configuration for automated dependency updates
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
+
+version: 2
+updates:
+  # GitHub Actions dependencies
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    reviewers:
+      - "estebang"
+    assignees:
+      - "estebang"
+
+  # NuGet dependencies for main web project
+  - package-ecosystem: "nuget"
+    directory: "/src/TailspinToys.Web"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "nuget"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    reviewers:
+      - "estebang"
+    assignees:
+      - "estebang"
+    groups:
+      # Group Entity Framework Core packages together
+      efcore:
+        patterns:
+          - "Microsoft.EntityFrameworkCore*"
+      # Group Microsoft packages together
+      microsoft:
+        patterns:
+          - "Microsoft.*"
+        exclude-patterns:
+          - "Microsoft.EntityFrameworkCore*"
+
+  # NuGet dependencies for test project
+  - package-ecosystem: "nuget"
+    directory: "/tests/TailspinToys.Web.Tests"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "nuget"
+      - "tests"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    reviewers:
+      - "estebang"
+    assignees:
+      - "estebang"
+    groups:
+      # Group xUnit packages together
+      xunit:
+        patterns:
+          - "xunit*"
+      # Group test related packages
+      testing:
+        patterns:
+          - "Microsoft.NET.Test.Sdk"
+          - "coverlet.*"

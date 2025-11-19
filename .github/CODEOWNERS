@@ -1,0 +1,19 @@
+# CODEOWNERS file for GitHub Actions workflows
+# These owners will be automatically requested for review when someone opens a pull request that modifies these files
+# Learn more: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# GitHub Actions workflows
+/.github/workflows/ @estebang
+/.github/dependabot.yml @estebang
+
+# CI/CD configuration
+/ci.yml @estebang
+/deploy*.yml @estebang
+/security*.yml @estebang
+
+# Application code (default owners)
+/src/ @estebang
+/tests/ @estebang
+
+# Documentation
+*.md @estebang
