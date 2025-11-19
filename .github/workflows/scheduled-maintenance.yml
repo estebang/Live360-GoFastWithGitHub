@@ -1,0 +1,225 @@
+name: Scheduled Maintenance
+
+on:
+  schedule:
+    # Run every Monday at 9:00 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+  security-events: write
+
+jobs:
+  dependency-update-check:
+    name: Check for Dependency Updates
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+        cache: true
+        cache-dependency-path: '**/*.csproj'
+    
+    - name: Check for outdated packages
+      run: |
+        echo "# Dependency Update Report" > dependency-report.md
+        echo "" >> dependency-report.md
+        echo "Generated on: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> dependency-report.md
+        echo "" >> dependency-report.md
+        
+        dotnet list TailspinToys.sln package --outdated --include-transitive > outdated.txt
+        
+        if grep -q "Top-level Package" outdated.txt; then
+          echo "## 📦 Outdated Packages Found" >> dependency-report.md
+          echo "" >> dependency-report.md
+          echo '```' >> dependency-report.md
+          cat outdated.txt >> dependency-report.md
+          echo '```' >> dependency-report.md
+        else
+          echo "## ✅ All Packages Up to Date" >> dependency-report.md
+        fi
+        
+        cat dependency-report.md >> $GITHUB_STEP_SUMMARY
+
+  security-audit:
+    name: Weekly Security Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+        cache: true
+        cache-dependency-path: '**/*.csproj'
+    
+    - name: Restore dependencies
+      run: dotnet restore TailspinToys.sln --verbosity minimal
+    
+    - name: Run vulnerability scan
+      run: |
+        echo "# Security Audit Report" > security-report.md
+        echo "" >> security-report.md
+        echo "Generated on: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> security-report.md
+        echo "" >> security-report.md
+        
+        dotnet list TailspinToys.sln package --vulnerable --include-transitive 2>&1 | tee vulnerabilities.txt
+        
+        if grep -q "has the following vulnerable packages" vulnerabilities.txt; then
+          echo "## ⚠️ Vulnerable Packages Detected" >> security-report.md
+          echo "" >> security-report.md
+          echo '```' >> security-report.md
+          cat vulnerabilities.txt >> security-report.md
+          echo '```' >> security-report.md
+          
+          echo "VULNERABILITIES_FOUND=true" >> $GITHUB_ENV
+        else
+          echo "## ✅ No Vulnerable Packages Detected" >> security-report.md
+          echo "VULNERABILITIES_FOUND=false" >> $GITHUB_ENV
+        fi
+        
+        cat security-report.md >> $GITHUB_STEP_SUMMARY
+    
+    - name: Create security issue if vulnerabilities found
+      if: env.VULNERABILITIES_FOUND == 'true'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const report = fs.readFileSync('security-report.md', 'utf8');
+          
+          const issueTitle = `🔒 Security Alert: Vulnerable Dependencies Detected - ${new Date().toISOString().split('T')[0]}`;
+          const issueBody = `${report}
+          
+          ## Action Required
+          
+          Please review and update the vulnerable packages as soon as possible.
+          
+          ### Steps to Resolve
+          1. Review the vulnerable packages listed above
+          2. Update to the latest secure versions
+          3. Run tests to ensure compatibility
+          4. Deploy the updates
+          
+          ---
+          *This issue was automatically created by the scheduled maintenance workflow.*`;
+          
+          await github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: issueTitle,
+            body: issueBody,
+            labels: ['security', 'dependencies']
+          });
+
+  cache-cleanup:
+    name: Cleanup Old Caches
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+    - name: Cleanup old workflow runs
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const daysToKeep = 30;
+          const cutoffDate = new Date();
+          cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
+          
+          const { data: workflows } = await github.rest.actions.listRepoWorkflows({
+            owner: context.repo.owner,
+            repo: context.repo.repo
+          });
+          
+          let deletedCount = 0;
+          
+          for (const workflow of workflows.workflows) {
+            const { data: runs } = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: workflow.id,
+              status: 'completed',
+              per_page: 100
+            });
+            
+            for (const run of runs.workflow_runs) {
+              const runDate = new Date(run.created_at);
+              if (runDate < cutoffDate) {
+                try {
+                  await github.rest.actions.deleteWorkflowRun({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    run_id: run.id
+                  });
+                  deletedCount++;
+                } catch (error) {
+                  console.log(`Could not delete run ${run.id}: ${error.message}`);
+                }
+              }
+            }
+          }
+          
+          core.summary
+            .addHeading('Cache Cleanup Report')
+            .addRaw(`Deleted ${deletedCount} workflow runs older than ${daysToKeep} days`)
+            .write();
+
+  workflow-health:
+    name: Workflow Health Report
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+    - name: Generate workflow statistics
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const { data: workflows } = await github.rest.actions.listRepoWorkflows({
+            owner: context.repo.owner,
+            repo: context.repo.repo
+          });
+          
+          const stats = [];
+          
+          for (const workflow of workflows.workflows) {
+            const { data: runs } = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: workflow.id,
+              per_page: 50
+            });
+            
+            const total = runs.workflow_runs.length;
+            const successful = runs.workflow_runs.filter(r => r.conclusion === 'success').length;
+            const failed = runs.workflow_runs.filter(r => r.conclusion === 'failure').length;
+            const successRate = total > 0 ? ((successful / total) * 100).toFixed(1) : 'N/A';
+            
+            stats.push([
+              workflow.name,
+              total.toString(),
+              successful.toString(),
+              failed.toString(),
+              total > 0 ? `${successRate}%` : 'N/A'
+            ]);
+          }
+          
+          core.summary
+            .addHeading('Workflow Health Report (Last 50 Runs)')
+            .addTable([
+              [{data: 'Workflow', header: true}, {data: 'Total', header: true}, {data: 'Success', header: true}, {data: 'Failed', header: true}, {data: 'Success Rate', header: true}],
+              ...stats
+            ])
+            .write();

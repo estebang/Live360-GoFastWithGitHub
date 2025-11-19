@@ -1,0 +1,117 @@
+name: Deploy to Azure
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Deployment environment (development/staging/production)'
+        required: true
+        type: string
+      app-name:
+        description: 'Azure Web App name'
+        required: true
+        type: string
+      artifact-name:
+        description: 'Name of the artifact to deploy'
+        required: true
+        type: string
+      dotnet-version:
+        description: 'The .NET version to use'
+        required: false
+        type: string
+        default: '9.0.x'
+      slot-name:
+        description: 'Deployment slot name'
+        required: false
+        type: string
+        default: ''
+      run-smoke-tests:
+        description: 'Whether to run smoke tests after deployment'
+        required: false
+        type: boolean
+        default: true
+    secrets:
+      azure-client-id:
+        required: true
+      azure-tenant-id:
+        required: true
+      azure-subscription-id:
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: 
+      name: ${{ inputs.environment }}
+      url: ${{ steps.deploy.outputs.webapp-url }}
+    
+    permissions:
+      id-token: write
+      contents: read
+      deployments: write
+    
+    steps:
+    - name: Download artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ./publish
+    
+    - name: Display deployment info
+      run: |
+        echo "### Deployment Information" >> $GITHUB_STEP_SUMMARY
+        echo "- **Environment**: ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **App Name**: ${{ inputs.app-name }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Artifact**: ${{ inputs.artifact-name }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Slot**: ${{ inputs.slot-name || 'production' }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Run Number**: ${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+    
+    - name: Azure Login (OIDC)
+      uses: azure/login@v2
+      with:
+        client-id: ${{ secrets.azure-client-id }}
+        tenant-id: ${{ secrets.azure-tenant-id }}
+        subscription-id: ${{ secrets.azure-subscription-id }}
+    
+    - name: Deploy to Azure Web App
+      id: deploy
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: ${{ inputs.app-name }}
+        slot-name: ${{ inputs.slot-name }}
+        package: ./publish
+    
+    - name: Health check
+      if: inputs.run-smoke-tests
+      run: |
+        APP_URL="${{ steps.deploy.outputs.webapp-url }}"
+        echo "Running health check on $APP_URL"
+        
+        max_attempts=10
+        attempt=1
+        
+        while [ $attempt -le $max_attempts ]; do
+          echo "Attempt $attempt of $max_attempts..."
+          
+          if curl -f -s -o /dev/null -w "%{http_code}" "$APP_URL" | grep -q "200\|301\|302"; then
+            echo "✅ Health check passed!"
+            echo "### ✅ Deployment Successful" >> $GITHUB_STEP_SUMMARY
+            echo "Application is healthy at $APP_URL" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+          
+          echo "Health check failed, waiting 10 seconds..."
+          sleep 10
+          attempt=$((attempt + 1))
+        done
+        
+        echo "❌ Health check failed after $max_attempts attempts"
+        echo "### ❌ Deployment Health Check Failed" >> $GITHUB_STEP_SUMMARY
+        echo "Application did not respond successfully at $APP_URL" >> $GITHUB_STEP_SUMMARY
+        exit 1
+    
+    - name: Azure logout
+      if: always()
+      run: az logout

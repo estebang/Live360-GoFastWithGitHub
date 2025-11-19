@@ -1,0 +1,132 @@
+name: Build .NET Application
+
+on:
+  workflow_call:
+    inputs:
+      dotnet-version:
+        description: 'The .NET version to use'
+        required: false
+        type: string
+        default: '9.0.x'
+      configuration:
+        description: 'Build configuration (Debug/Release)'
+        required: false
+        type: string
+        default: 'Release'
+      run-tests:
+        description: 'Whether to run tests'
+        required: false
+        type: boolean
+        default: true
+      upload-artifacts:
+        description: 'Whether to upload build artifacts'
+        required: false
+        type: boolean
+        default: false
+    outputs:
+      artifact-name:
+        description: 'The name of the uploaded artifact'
+        value: ${{ jobs.build.outputs.artifact-name }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    outputs:
+      artifact-name: ${{ steps.artifact-info.outputs.name }}
+    
+    permissions:
+      contents: read
+      checks: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ inputs.dotnet-version }}
+        cache: true
+        cache-dependency-path: '**/*.csproj'
+    
+    - name: Restore dependencies
+      run: dotnet restore TailspinToys.sln --verbosity minimal
+    
+    - name: Build
+      run: |
+        dotnet build TailspinToys.sln \
+          --no-restore \
+          --configuration ${{ inputs.configuration }} \
+          --verbosity minimal \
+          /p:TreatWarningsAsErrors=true \
+          /p:ContinuousIntegrationBuild=true
+    
+    - name: Run tests
+      if: inputs.run-tests
+      run: |
+        dotnet test TailspinToys.sln \
+          --no-build \
+          --configuration ${{ inputs.configuration }} \
+          --verbosity normal \
+          --collect:"XPlat Code Coverage" \
+          --results-directory ./coverage \
+          --logger "trx;LogFileName=test-results.trx" \
+          -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
+    
+    - name: Upload test results
+      if: always() && inputs.run-tests
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results-${{ github.run_number }}
+        path: |
+          **/test-results.trx
+          ./coverage/**/coverage.opencover.xml
+        retention-days: 30
+    
+    - name: Publish test summary
+      if: always() && inputs.run-tests
+      uses: dorny/test-reporter@v1
+      with:
+        name: Test Results
+        path: '**/test-results.trx'
+        reporter: dotnet-trx
+        fail-on-error: true
+    
+    - name: Upload coverage to Codecov
+      if: success() && inputs.run-tests
+      uses: codecov/codecov-action@v4
+      with:
+        files: ./coverage/**/coverage.opencover.xml
+        fail_ci_if_error: false
+        token: ${{ secrets.CODECOV_TOKEN }}
+        flags: unittests
+        name: codecov-umbrella
+    
+    - name: Publish application
+      if: inputs.upload-artifacts
+      run: |
+        dotnet publish src/TailspinToys.Web/TailspinToys.Web.csproj \
+          --no-build \
+          --configuration ${{ inputs.configuration }} \
+          --output ./publish \
+          --verbosity minimal \
+          /p:PublishTrimmed=false \
+          /p:PublishSingleFile=false
+    
+    - name: Set artifact info
+      id: artifact-info
+      if: inputs.upload-artifacts
+      run: echo "name=tailspintoys-${{ github.run_number }}" >> $GITHUB_OUTPUT
+    
+    - name: Upload build artifacts
+      if: inputs.upload-artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ steps.artifact-info.outputs.name }}
+        path: ./publish
+        retention-days: 7
+        compression-level: 6

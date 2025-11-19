@@ -1,0 +1,197 @@
+name: Performance Monitoring
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  benchmark:
+    name: Run Performance Benchmarks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+        cache: true
+        cache-dependency-path: '**/*.csproj'
+    
+    - name: Restore dependencies
+      run: dotnet restore TailspinToys.sln --verbosity minimal
+    
+    - name: Build for Release
+      run: |
+        dotnet build TailspinToys.sln \
+          --no-restore \
+          --configuration Release \
+          --verbosity minimal
+    
+    - name: Analyze build size
+      run: |
+        echo "# Build Size Analysis" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Publish the application
+        dotnet publish src/TailspinToys.Web/TailspinToys.Web.csproj \
+          --no-build \
+          --configuration Release \
+          --output ./publish
+        
+        # Calculate sizes
+        TOTAL_SIZE=$(du -sh ./publish | cut -f1)
+        DLL_SIZE=$(find ./publish -name "*.dll" -exec du -ch {} + | grep total | cut -f1)
+        
+        echo "| Metric | Size |" >> $GITHUB_STEP_SUMMARY
+        echo "|--------|------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Total Published Size | $TOTAL_SIZE |" >> $GITHUB_STEP_SUMMARY
+        echo "| Total DLL Size | $DLL_SIZE |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # List largest files
+        echo "## Largest Files" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        du -ah ./publish | sort -rh | head -20 >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+    
+    - name: Test execution performance
+      run: |
+        echo "# Test Performance" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        START_TIME=$(date +%s)
+        
+        dotnet test TailspinToys.sln \
+          --no-build \
+          --configuration Release \
+          --verbosity quiet
+        
+        END_TIME=$(date +%s)
+        DURATION=$((END_TIME - START_TIME))
+        
+        echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+        echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Test Execution Time | ${DURATION}s |" >> $GITHUB_STEP_SUMMARY
+    
+    - name: Build time comparison
+      if: github.event_name == 'pull_request'
+      run: |
+        echo "# Build Time Comparison" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "⚡ Build completed successfully" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Review the workflow logs for detailed timing information." >> $GITHUB_STEP_SUMMARY
+
+  startup-performance:
+    name: Application Startup Performance
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+        cache: true
+        cache-dependency-path: '**/*.csproj'
+    
+    - name: Build application
+      run: |
+        dotnet build src/TailspinToys.Web/TailspinToys.Web.csproj \
+          --configuration Release \
+          --verbosity minimal
+    
+    - name: Measure startup time
+      run: |
+        echo "# Application Startup Performance" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        cd src/TailspinToys.Web
+        
+        # Start the application in the background
+        START_TIME=$(date +%s%3N)
+        dotnet run --configuration Release --no-build &
+        APP_PID=$!
+        
+        # Wait for the application to start (max 30 seconds)
+        MAX_WAIT=30
+        WAITED=0
+        while [ $WAITED -lt $MAX_WAIT ]; do
+          if curl -f -s -o /dev/null http://localhost:5000 2>/dev/null; then
+            END_TIME=$(date +%s%3N)
+            STARTUP_TIME=$((END_TIME - START_TIME))
+            
+            echo "✅ Application started successfully" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+            echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| Startup Time | ${STARTUP_TIME}ms |" >> $GITHUB_STEP_SUMMARY
+            
+            # Cleanup
+            kill $APP_PID 2>/dev/null || true
+            exit 0
+          fi
+          sleep 1
+          WAITED=$((WAITED + 1))
+        done
+        
+        echo "❌ Application failed to start within ${MAX_WAIT}s" >> $GITHUB_STEP_SUMMARY
+        kill $APP_PID 2>/dev/null || true
+        exit 1
+
+  resource-usage:
+    name: Resource Usage Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+        cache: true
+        cache-dependency-path: '**/*.csproj'
+    
+    - name: Analyze memory usage
+      run: |
+        echo "# Resource Usage Analysis" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        dotnet restore TailspinToys.sln --verbosity minimal
+        
+        # Build with detailed diagnostics
+        /usr/bin/time -v dotnet build TailspinToys.sln \
+          --configuration Release \
+          --verbosity minimal 2>&1 | tee build-metrics.txt
+        
+        # Extract memory usage
+        MAX_MEMORY=$(grep "Maximum resident set size" build-metrics.txt | awk '{print $6}')
+        
+        echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+        echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Peak Memory Usage | ${MAX_MEMORY} KB |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # NuGet package count
+        PKG_COUNT=$(dotnet list TailspinToys.sln package --include-transitive 2>/dev/null | grep ">" | wc -l)
+        echo "| NuGet Packages (including transitive) | ${PKG_COUNT} |" >> $GITHUB_STEP_SUMMARY
