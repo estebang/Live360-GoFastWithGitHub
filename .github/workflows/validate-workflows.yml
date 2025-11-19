@@ -1,0 +1,87 @@
+name: Validate Workflows
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+  push:
+    paths:
+      - '.github/workflows/**'
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate Workflow Syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Validate workflow files
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+          const yaml = require('js-yaml');
+          
+          const workflowDir = '.github/workflows';
+          const files = fs.readdirSync(workflowDir).filter(f => f.endsWith('.yml') || f.endsWith('.yaml'));
+          
+          let allValid = true;
+          const results = [];
+          
+          for (const file of files) {
+            if (file === 'README.md') continue;
+            
+            const filePath = path.join(workflowDir, file);
+            const content = fs.readFileSync(filePath, 'utf8');
+            
+            try {
+              const doc = yaml.load(content);
+              
+              // Basic validation
+              if (!doc.name) {
+                results.push([file, '❌ Failed', 'Missing workflow name']);
+                allValid = false;
+                continue;
+              }
+              
+              if (!doc.on) {
+                results.push([file, '❌ Failed', 'Missing trigger definition']);
+                allValid = false;
+                continue;
+              }
+              
+              if (!doc.jobs) {
+                results.push([file, '❌ Failed', 'Missing jobs definition']);
+                allValid = false;
+                continue;
+              }
+              
+              results.push([file, '✅ Valid', `${Object.keys(doc.jobs).length} jobs`]);
+            } catch (error) {
+              results.push([file, '❌ Failed', error.message]);
+              allValid = false;
+            }
+          }
+          
+          core.summary
+            .addHeading('Workflow Validation Results')
+            .addTable([
+              [{data: 'File', header: true}, {data: 'Status', header: true}, {data: 'Details', header: true}],
+              ...results
+            ])
+            .write();
+          
+          if (!allValid) {
+            core.setFailed('One or more workflow files have validation errors');
+          }

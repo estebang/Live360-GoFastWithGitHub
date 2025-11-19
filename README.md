@@ -1,6 +1,10 @@
 # TailspinToys
 
-A modern ASP.NET Core web application for managing fundraising campaigns built with .NET 8 and Entity Framework Core.
+[![CI/CD](https://github.com/estebang/Live360-GoFastWithGitHub/actions/workflows/ci.yml/badge.svg)](https://github.com/estebang/Live360-GoFastWithGitHub/actions/workflows/ci.yml)
+[![Security Scan](https://github.com/estebang/Live360-GoFastWithGitHub/actions/workflows/security-scan.yml/badge.svg)](https://github.com/estebang/Live360-GoFastWithGitHub/actions/workflows/security-scan.yml)
+[![codecov](https://codecov.io/gh/estebang/Live360-GoFastWithGitHub/branch/main/graph/badge.svg)](https://codecov.io/gh/estebang/Live360-GoFastWithGitHub)
+
+A modern ASP.NET Core web application for managing fundraising campaigns built with .NET 9.0 and Entity Framework Core.
 
 ## 📋 Overview
 
@@ -113,6 +117,46 @@ The project uses xUnit for testing. Test files are located in the `tests/Tailspi
 
 ## 📦 Build and Deployment
 
+### CI/CD Pipeline
+
+This project uses GitHub Actions for automated CI/CD with enterprise DevOps best practices:
+
+#### Automated Workflows
+
+- **CI/CD Pipeline**: Automated build, test, security scanning, and deployment
+  - Runs on push to `main`, `develop`, and `demo/*` branches
+  - Pull request validation
+  - Environment-specific deployments (development/production)
+  - Automated smoke tests after deployment
+
+- **Security Scanning**: Multi-layer security checks
+  - CodeQL static analysis
+  - Dependency vulnerability scanning
+  - SBOM (Software Bill of Materials) generation
+  - Weekly security audits
+
+- **PR Quality Checks**: Automated code quality validation
+  - Code formatting verification
+  - PR size analysis
+  - Test execution
+  - Automated feedback comments
+
+- **Matrix Testing**: Cross-platform compatibility
+  - Tests on Linux, Windows, and macOS
+  - Multiple .NET version support
+
+- **Performance Monitoring**: Track application performance
+  - Build size analysis
+  - Startup time measurement
+  - Resource usage tracking
+
+See [.github/workflows/README.md](.github/workflows/README.md) for detailed workflow documentation.
+
+#### Deployment Environments
+
+- **Development**: Auto-deploys from `develop` branch
+- **Production**: Auto-deploys from `main` branch with approval
+
 ### Local Build
 ```bash
 dotnet build --configuration Release
@@ -150,7 +194,7 @@ The application uses standard ASP.NET Core configuration:
 ### Common Issues
 
 **Application won't start**
-- Ensure .NET 8.0 SDK is installed
+- Ensure .NET 9.0 SDK is installed
 - Check that ports 5000/5001 are available
 - Verify all dependencies are restored (`dotnet restore`)
 

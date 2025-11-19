@@ -161,6 +161,41 @@ Weekly automated maintenance tasks.
 - `cache-cleanup`: Removes old workflow runs
 - `workflow-health`: Generates workflow statistics
 
+### Automation Workflows
+
+#### 9. **Auto Label PRs** (`auto-label.yml`)
+Automatically labels pull requests based on changed files.
+
+**Features:**
+- File-based categorization (workflows, source, tests, docs, dependencies, config)
+- PR size labeling (XS/S/M/L/XL)
+- Automatic label application
+- Label summary generation
+
+#### 10. **Validate Workflows** (`validate-workflows.yml`)
+Validates workflow file syntax and structure.
+
+**Features:**
+- YAML syntax validation
+- Workflow structure checks
+- Validation result summary
+- Runs on workflow file changes
+
+## 📋 Additional Configuration
+
+### Dependabot (`dependabot.yml`)
+Automated dependency updates for:
+- GitHub Actions (weekly)
+- NuGet packages for main project (weekly)
+- NuGet packages for test project (weekly)
+- Grouped updates for related packages (EF Core, xUnit, etc.)
+
+### Code Owners (`CODEOWNERS`)
+Automatic reviewer assignment:
+- Workflow changes: DevOps team
+- Source code: Development team
+- Documentation: All teams
+
 ## 🔐 Security Features
 
 ### 1. **Least Privilege Permissions**
@@ -387,6 +422,17 @@ scheduled-maintenance.yml (Weekly Maintenance)
 ├── Security Audit
 ├── Cache Cleanup
 └── Workflow Health
+
+auto-label.yml (PR Automation)
+└── Auto-apply labels
+
+validate-workflows.yml (Quality Gate)
+└── Validate workflow syntax
+
+Dependabot (Automated Updates)
+├── GitHub Actions dependencies
+├── NuGet packages (main project)
+└── NuGet packages (test project)
 ```
 
 ## 📚 Additional Resources
