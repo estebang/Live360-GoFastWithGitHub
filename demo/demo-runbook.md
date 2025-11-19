@@ -74,7 +74,7 @@ demo/custom-agent
 3. Copilot prompt:
 
 ```
-Create a CI workflow for this .NET 8 Razor Pages application.
+Create a CI workflow for this .NET 9 Razor Pages application.
 It should run on push and pull_request, restore dependencies,
 build, test, and cache NuGet packages.
 ```
