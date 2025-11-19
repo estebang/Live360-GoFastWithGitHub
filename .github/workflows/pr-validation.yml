@@ -1,0 +1,298 @@
+name: PR Validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+      - develop
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/**'
+      - '!.github/workflows/**'
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+  statuses: write
+
+concurrency:
+  group: pr-validation-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  CONFIGURATION: 'Release'
+
+jobs:
+  pr-info:
+    name: PR Information
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Display PR information
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            console.log('PR Information:');
+            console.log(`  Number: ${pr.number}`);
+            console.log(`  Title: ${pr.title}`);
+            console.log(`  Author: ${pr.user.login}`);
+            console.log(`  Base: ${pr.base.ref}`);
+            console.log(`  Head: ${pr.head.ref}`);
+            
+            core.summary
+              .addHeading('PR Validation Started', 2)
+              .addRaw(`**PR #${pr.number}**: ${pr.title}`, true)
+              .addRaw(`**Author**: ${pr.user.login}`, true)
+              .addRaw(`**Base Branch**: ${pr.base.ref}`, true)
+              .addRaw(`**Head Branch**: ${pr.head.ref}`, true)
+              .write();
+
+  fast-build:
+    name: Fast Build & Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+      
+      - name: Restore dependencies
+        run: dotnet restore ./TailspinToys.sln
+      
+      - name: Build solution
+        run: |
+          dotnet build ./TailspinToys.sln \
+            --configuration ${{ env.CONFIGURATION }} \
+            --no-restore \
+            /p:TreatWarningsAsErrors=true
+      
+      - name: Run tests
+        run: |
+          dotnet test ./TailspinToys.sln \
+            --configuration ${{ env.CONFIGURATION }} \
+            --no-build \
+            --verbosity normal \
+            --logger "trx;LogFileName=test-results.trx" \
+            --collect:"XPlat Code Coverage" \
+            --results-directory ./TestResults
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-test-results
+          path: TestResults/**/*.trx
+          retention-days: 7
+      
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-coverage
+          path: TestResults/**/coverage.cobertura.xml
+          retention-days: 7
+
+  code-analysis:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    needs: fast-build
+    
+    permissions:
+      contents: read
+      pull-requests: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      
+      - name: Restore dependencies
+        run: dotnet restore ./TailspinToys.sln
+      
+      - name: Check code formatting
+        run: |
+          dotnet format ./TailspinToys.sln --verify-no-changes --verbosity diagnostic || {
+            echo "⚠️ Code formatting issues detected"
+            echo "Run 'dotnet format' locally to fix formatting issues"
+            exit 1
+          }
+        continue-on-error: true
+      
+      - name: Analyze code
+        run: |
+          echo "Analyzing code quality..."
+          dotnet build ./TailspinToys.sln \
+            --configuration ${{ env.CONFIGURATION }} \
+            /p:TreatWarningsAsErrors=false \
+            /p:WarningLevel=4
+      
+      - name: Download coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: pr-coverage
+          path: ./coverage
+      
+      - name: Code quality summary
+        run: |
+          echo "## 📊 Code Quality Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Build completed successfully" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All tests passed" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Code analysis completed" >> $GITHUB_STEP_SUMMARY
+
+  changed-files:
+    name: Analyze Changed Files
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Get changed files
+        id: changed-files
+        run: |
+          git fetch origin ${{ github.event.pull_request.base.ref }}
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}...HEAD)
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+          
+          CS_FILES=$(echo "$CHANGED_FILES" | grep '\.cs$' | wc -l)
+          CSPROJ_FILES=$(echo "$CHANGED_FILES" | grep '\.csproj$' | wc -l)
+          TEST_FILES=$(echo "$CHANGED_FILES" | grep 'Test' | wc -l)
+          
+          echo "cs-files=$CS_FILES" >> $GITHUB_OUTPUT
+          echo "csproj-files=$CSPROJ_FILES" >> $GITHUB_OUTPUT
+          echo "test-files=$TEST_FILES" >> $GITHUB_OUTPUT
+          
+          echo "## 📁 Changed Files Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **C# Files**: $CS_FILES" >> $GITHUB_STEP_SUMMARY
+          echo "- **Project Files**: $CSPROJ_FILES" >> $GITHUB_STEP_SUMMARY
+          echo "- **Test Files**: $TEST_FILES" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Changed Files:" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$CHANGED_FILES" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  comment-on-pr:
+    name: Comment on PR
+    runs-on: ubuntu-latest
+    needs: [fast-build, code-analysis]
+    if: always()
+    
+    permissions:
+      pull-requests: write
+    
+    steps:
+      - name: Create PR comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const buildStatus = '${{ needs.fast-build.result }}';
+            const codeAnalysisStatus = '${{ needs.code-analysis.result }}';
+            
+            const buildEmoji = buildStatus === 'success' ? '✅' : '❌';
+            const analysisEmoji = codeAnalysisStatus === 'success' ? '✅' : '⚠️';
+            
+            let comment = '## 🔍 PR Validation Results\n\n';
+            comment += '| Check | Status |\n';
+            comment += '|-------|--------|\n';
+            comment += `| Build & Test | ${buildEmoji} ${buildStatus} |\n`;
+            comment += `| Code Analysis | ${analysisEmoji} ${codeAnalysisStatus} |\n`;
+            comment += '\n';
+            
+            if (buildStatus === 'success' && codeAnalysisStatus === 'success') {
+              comment += '### ✅ All checks passed!\n\n';
+              comment += 'This PR is ready for review.\n';
+            } else {
+              comment += '### ⚠️ Some checks failed\n\n';
+              comment += 'Please review the workflow logs for details.\n';
+            }
+            
+            comment += '\n---\n';
+            comment += `*Workflow run: [${context.runId}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})*`;
+            
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+            
+            const botComment = comments.find(c => 
+              c.user.type === 'Bot' && c.body.includes('PR Validation Results')
+            );
+            
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: comment
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment
+              });
+            }
+
+  pr-validation-complete:
+    name: PR Validation Complete
+    runs-on: ubuntu-latest
+    needs: [fast-build, code-analysis, changed-files]
+    if: always()
+    
+    steps:
+      - name: Check validation status
+        run: |
+          if [ "${{ needs.fast-build.result }}" != "success" ]; then
+            echo "❌ Build failed"
+            exit 1
+          fi
+          
+          if [ "${{ needs.code-analysis.result }}" != "success" ]; then
+            echo "⚠️ Code analysis had issues"
+            # Don't fail on code analysis warnings
+          fi
+          
+          echo "✅ PR validation complete"
+          
+          echo "## ✅ PR Validation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "All required checks have passed." >> $GITHUB_STEP_SUMMARY
+          echo "This PR is ready for review." >> $GITHUB_STEP_SUMMARY
