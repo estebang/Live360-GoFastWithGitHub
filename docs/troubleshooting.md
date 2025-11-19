@@ -104,6 +104,34 @@ find . -name "*.csproj" -o -name "*.sln"
   run: dotnet test --no-build --configuration Release
 ```
 
+#### Issue: `Error CS7034: The specified version string does not conform to required format`
+
+**Cause:** Git commit SHA used as version doesn't follow .NET version format (major.minor.build.revision).
+
+**Example Error:**
+```
+error CS7034: The specified version string '3029d2d' does not conform to the required format
+```
+
+**Solution:**
+The workflow now automatically generates proper .NET-compatible versions:
+- **AssemblyVersion**: `1.0.0.123` (semantic version + build number)
+- **FileVersion**: `1.0.0.123` (same as AssemblyVersion)
+- **InformationalVersion**: `1.0.0-dev.123+3029d2d` (full semantic version with metadata)
+
+**Manual Fix (if needed):**
+```yaml
+- name: Generate version
+  run: |
+    # Generate proper .NET version format
+    LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
+    LATEST_TAG=${LATEST_TAG#v}  # Remove 'v' prefix
+    COMMIT_COUNT=$(git rev-list --count HEAD)
+    ASSEMBLY_VERSION="${LATEST_TAG}.${COMMIT_COUNT}"
+    
+    echo "assembly-version=$ASSEMBLY_VERSION" >> $GITHUB_OUTPUT
+```
+
 ### 3. Deployment Issues
 
 #### Issue: `Error: Could not find host with name xxx.azurewebsites.net`

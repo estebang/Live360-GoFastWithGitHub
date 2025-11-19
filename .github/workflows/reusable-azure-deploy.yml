@@ -138,13 +138,32 @@ jobs:
     - name: Generate version
       id: version
       run: |
+        # Use git describe to generate a version based on tags and commits
         if git describe --tags --exact-match HEAD >/dev/null 2>&1; then
+          # We're on a tag, use the tag as version (assume it's properly formatted)
           VERSION=$(git describe --tags --exact-match HEAD)
+          ASSEMBLY_VERSION=$VERSION
         else
-          VERSION=$(git describe --tags --always --dirty=-dev 2>/dev/null || echo "1.0.0-dev.$(git rev-parse --short HEAD)")
+          # Generate semantic version from latest tag + build number
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
+          # Remove 'v' prefix if present
+          LATEST_TAG=${LATEST_TAG#v}
+          
+          # Get commit count since last tag
+          COMMIT_COUNT=$(git rev-list --count HEAD ^$(git describe --tags --abbrev=0 2>/dev/null || echo "HEAD~1000") 2>/dev/null || echo "0")
+          
+          # Get short commit SHA
+          COMMIT_SHA=$(git rev-parse --short HEAD)
+          
+          # Generate versions
+          VERSION="${LATEST_TAG}-dev.${COMMIT_COUNT}+${COMMIT_SHA}"
+          ASSEMBLY_VERSION="${LATEST_TAG}.${COMMIT_COUNT}"
         fi
+        
         echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "assembly-version=$ASSEMBLY_VERSION" >> $GITHUB_OUTPUT
         echo "Generated version: $VERSION"
+        echo "Assembly version: $ASSEMBLY_VERSION"
     
     # Restore dependencies
     - name: Restore dependencies
@@ -161,7 +180,9 @@ jobs:
           --no-restore \
           --configuration ${{ inputs.configuration }} \
           --verbosity minimal \
-          -p:Version=${{ steps.version.outputs.version }}
+          -p:Version="${{ steps.version.outputs.version }}" \
+          -p:AssemblyVersion="${{ steps.version.outputs.assembly-version }}" \
+          -p:InformationalVersion="${{ steps.version.outputs.version }}"
         echo "::endgroup::"
     
     # Publish the application
@@ -172,7 +193,9 @@ jobs:
           --no-build \
           --configuration ${{ inputs.configuration }} \
           --output ./publish \
-          -p:Version=${{ steps.version.outputs.version }} \
+          -p:Version="${{ steps.version.outputs.version }}" \
+          -p:AssemblyVersion="${{ steps.version.outputs.assembly-version }}" \
+          -p:InformationalVersion="${{ steps.version.outputs.version }}" \
           -p:EnvironmentName=${{ inputs.environment-name }}
         
         # Create deployment info file

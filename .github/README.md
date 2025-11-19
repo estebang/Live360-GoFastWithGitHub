@@ -405,7 +405,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 For questions about the CI/CD pipeline:
 - 📧 Create an issue in this repository
 - 💬 Contact the DevOps team
-- 📖 Check the [troubleshooting guide](docs/troubleshooting.md)
+- 📖 Check the [troubleshooting guide](../docs/troubleshooting.md)
 
 ---
 
