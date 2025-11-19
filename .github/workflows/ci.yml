@@ -43,13 +43,49 @@ jobs:
       
     # Upload build artifacts for deployment job
     - name: Upload build artifacts
-      if: github.ref == 'refs/heads/main'
+      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
       uses: actions/upload-artifact@v4
       with:
         name: webapp-build
         path: src/TailspinToys.Web/
 
-  deploy:
+  deploy-dev:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    environment: development
+    
+    steps:
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: webapp-build
+        path: ./webapp
+        
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+        
+    - name: Publish application
+      run: |
+        cd webapp
+        dotnet publish --configuration Release --output ./publish
+        
+    - name: Azure Login using OIDC
+      uses: azure/login@v2
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        
+    - name: Deploy to Azure Web App (Development)
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: ${{ vars.AZURE_WEBAPP_NAME_DEV }}
+        package: ./webapp/publish
+
+  deploy-prod:
     runs-on: ubuntu-latest
     needs: build-and-test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
