@@ -119,6 +119,13 @@ jobs:
     name: ⚡ Emergency Build & Test
     needs: [validate-hotfix]
     if: needs.validate-hotfix.outputs.can-proceed == 'true'
+    
+    # Required permissions for test result publishing
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+    
     uses: ./.github/workflows/reusable-build-and-test.yml
     with:
       dotnet-version: '9.0.x'

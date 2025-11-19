@@ -132,6 +132,34 @@ The workflow now automatically generates proper .NET-compatible versions:
     echo "assembly-version=$ASSEMBLY_VERSION" >> $GITHUB_OUTPUT
 ```
 
+#### Issue: `Error: HttpError: Resource not accessible by integration` (Test Reporter)
+
+**Cause:** Test reporter action lacks `checks: write` permission to create check runs.
+
+**Example Error:**
+```
+Error: HttpError: Resource not accessible by integration
+Creating check run .NET Test Results
+```
+
+**Solution:**
+The workflow now uses a custom test result parser instead of external actions:
+- Parses TRX files directly using shell commands
+- Creates test summaries in GitHub workflow summary
+- Uploads test artifacts for detailed analysis
+- No additional permissions required
+
+**Alternative Solution (if you prefer dorny/test-reporter):**
+```yaml
+jobs:
+  build-and-test:
+    permissions:
+      contents: read
+      checks: write        # Required for test reporter
+      pull-requests: write # Required for PR comments
+    uses: ./.github/workflows/reusable-build-and-test.yml
+```
+
 ### 3. Deployment Issues
 
 #### Issue: `Error: Could not find host with name xxx.azurewebsites.net`

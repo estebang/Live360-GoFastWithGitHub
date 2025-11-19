@@ -173,15 +173,73 @@ jobs:
         echo "::notice title=Test Results::Total: $TEST_COUNT, Passed: $PASSED_COUNT, Failed: $FAILED_COUNT"
         echo "::endgroup::"
     
-    # Publish test results
-    - name: Publish test results
-      uses: dorny/test-reporter@v1
-      if: success() || failure()
+    # Parse test results and create summary
+    - name: Parse test results
+      if: always()
+      run: |
+        echo "::group::Test Results Summary"
+        
+        # Find TRX files and extract results
+        TRX_FILES=$(find ./TestResults -name "*.trx" 2>/dev/null || true)
+        
+        if [ -n "$TRX_FILES" ]; then
+          echo "Found test result files:"
+          echo "$TRX_FILES"
+          
+          # Extract test counts from TRX files
+          TOTAL_TESTS=0
+          PASSED_TESTS=0
+          FAILED_TESTS=0
+          
+          for file in $TRX_FILES; do
+            if [ -f "$file" ]; then
+              # Extract counts from TRX XML
+              TOTAL=$(grep -o 'total="[0-9]*"' "$file" | grep -o '[0-9]*' | head -1 || echo "0")
+              PASSED=$(grep -o 'passed="[0-9]*"' "$file" | grep -o '[0-9]*' | head -1 || echo "0")
+              FAILED=$(grep -o 'failed="[0-9]*"' "$file" | grep -o '[0-9]*' | head -1 || echo "0")
+              
+              TOTAL_TESTS=$((TOTAL_TESTS + TOTAL))
+              PASSED_TESTS=$((PASSED_TESTS + PASSED))
+              FAILED_TESTS=$((FAILED_TESTS + FAILED))
+            fi
+          done
+          
+          # Create test summary
+          echo "📊 **Test Results Summary**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Total Tests | $TOTAL_TESTS |" >> $GITHUB_STEP_SUMMARY
+          echo "| Passed | $PASSED_TESTS ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| Failed | $FAILED_TESTS ❌ |" >> $GITHUB_STEP_SUMMARY
+          echo "| Success Rate | $(( TOTAL_TESTS > 0 ? (PASSED_TESTS * 100) / TOTAL_TESTS : 0 ))% |" >> $GITHUB_STEP_SUMMARY
+          
+          # Create notice
+          if [ $FAILED_TESTS -eq 0 ]; then
+            echo "::notice title=All Tests Passed::$TOTAL_TESTS tests passed successfully"
+          else
+            echo "::warning title=Test Failures::$FAILED_TESTS out of $TOTAL_TESTS tests failed"
+          fi
+          
+          echo "Test Summary: Total=$TOTAL_TESTS, Passed=$PASSED_TESTS, Failed=$FAILED_TESTS"
+        else
+          echo "::warning::No test result files found"
+          echo "⚠️ **No test results found**" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "::endgroup::"
+    
+    # Upload test results as artifacts for detailed analysis
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
       with:
-        name: .NET Test Results
-        path: './TestResults/*.trx'
-        reporter: dotnet-trx
-        fail-on-error: true
+        name: test-results-${{ github.run_id }}
+        path: |
+          ./TestResults/*.trx
+          ./TestResults/**/coverage.cobertura.xml
+          ./TestResults/**/coverage.opencover.xml
+        retention-days: 30
     
     # Upload code coverage to Codecov
     - name: Upload coverage to Codecov

@@ -46,6 +46,13 @@ jobs:
   # Uses the reusable workflow for consistent build and test processes
   build-and-test:
     name: 🔨 Build & Test
+    
+    # Required permissions for test result publishing
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+    
     uses: ./.github/workflows/reusable-build-and-test.yml
     with:
       dotnet-version: '9.0.x'

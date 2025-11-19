@@ -41,6 +41,13 @@ jobs:
   build-and-test-pr:
     name: 🔨 Build & Test PR
     if: github.event_name == 'pull_request' || inputs.action == 'deploy'
+    
+    # Required permissions for test result publishing
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+    
     uses: ./.github/workflows/reusable-build-and-test.yml
     with:
       dotnet-version: '9.0.x'
