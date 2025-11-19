@@ -1,10 +1,196 @@
 @page
 @{
-    ViewData["Title"] = "Contact";
+    ViewData["Title"] = "Contact - Get in Touch";
     Layout = "_Layout";
 }
 
-<h1>Contact</h1>
+<section class="hero">
+    <h1><i class="fas fa-envelope"></i> Get in Touch</h1>
+    <p>Let's connect and discuss software development, GitHub platform solutions, and modern DevOps practices</p>
+</section>
 
-<p>Esteban Garcia</p>
-<p>GitHub: <a href="https://github.com/estebang" target="_blank">https://github.com/estebang</a></p>
+<div style="display: grid; gap: 2rem; margin-bottom: 2rem;">
+    <!-- Main Contact Card -->
+    <div style="background: var(--card-background); border-radius: 20px; padding: 3rem; box-shadow: var(--shadow); position: relative; overflow: hidden;">
+        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 6px; background: linear-gradient(90deg, var(--primary-color), var(--secondary-color), var(--accent-color));"></div>
+        
+        <div style="display: grid; grid-template-columns: auto 1fr; gap: 3rem; align-items: center;">
+            <!-- Profile Section -->
+            <div style="text-align: center; min-width: 200px;">
+                <div style="background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: white; width: 120px; height: 120px; border-radius: 60px; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; font-size: 3rem; box-shadow: var(--shadow);">
+                    <i class="fas fa-user"></i>
+                </div>
+                <h2 style="font-size: 2rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem;">Esteban Garcia</h2>
+                <p style="color: var(--text-secondary); font-size: 1.1rem; margin-bottom: 1rem;">Software Development Expert</p>
+                
+                <div style="background: linear-gradient(135deg, #f0f9ff, #e0f2fe); padding: 1.5rem; border-radius: 12px; margin-top: 1rem;">
+                    <div style="font-size: 1rem; color: var(--primary-color); font-weight: 600; margin-bottom: 0.5rem;">
+                        <i class="fas fa-microphone"></i> Speaking at Live360
+                    </div>
+                    <div style="font-size: 0.9rem; color: var(--text-secondary);">Session VSW04: Take Action: Go Fast with GitHub</div>
+                </div>
+            </div>
+
+            <!-- Contact Information -->
+            <div>
+                <h3 style="font-size: 1.8rem; font-weight: 600; color: var(--text-primary); margin-bottom: 2rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <i class="fas fa-address-card" style="color: var(--primary-color);"></i>
+                    Contact Information
+                </h3>
+                
+                <div style="display: grid; gap: 1.5rem;">
+                    <!-- Email -->
+                    <div style="display: flex; align-items: center; gap: 1rem; padding: 1.5rem; background: #f8fafc; border-radius: 12px; border-left: 4px solid var(--primary-color); transition: transform 0.2s ease;" 
+                         onmouseover="this.style.transform='translateX(5px)'" onmouseout="this.style.transform='translateX(0)'">
+                        <div style="background: var(--primary-color); color: white; width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
+                            <i class="fas fa-envelope"></i>
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem;">Email</div>
+                            <a href="mailto:esteban.garcia@lanternstudios.com" 
+                               style="color: var(--primary-color); text-decoration: none; font-size: 1.1rem; font-weight: 500;"
+                               onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
+                                esteban.garcia@lanternstudios.com
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- LinkedIn -->
+                    <div style="display: flex; align-items: center; gap: 1rem; padding: 1.5rem; background: #f8fafc; border-radius: 12px; border-left: 4px solid #0077b5; transition: transform 0.2s ease;"
+                         onmouseover="this.style.transform='translateX(5px)'" onmouseout="this.style.transform='translateX(0)'">
+                        <div style="background: #0077b5; color: white; width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
+                            <i class="fab fa-linkedin-in"></i>
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem;">LinkedIn</div>
+                            <a href="https://linkedin.com/in/estebangarcia" target="_blank"
+                               style="color: #0077b5; text-decoration: none; font-size: 1.1rem; font-weight: 500;"
+                               onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
+                                linkedin.com/in/estebangarcia
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- GitHub -->
+                    <div style="display: flex; align-items: center; gap: 1rem; padding: 1.5rem; background: #f8fafc; border-radius: 12px; border-left: 4px solid #24292f; transition: transform 0.2s ease;"
+                         onmouseover="this.style.transform='translateX(5px)'" onmouseout="this.style.transform='translateX(0)'">
+                        <div style="background: #24292f; color: white; width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
+                            <i class="fab fa-github"></i>
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem;">GitHub</div>
+                            <a href="https://github.com/estebang" target="_blank"
+                               style="color: #24292f; text-decoration: none; font-size: 1.1rem; font-weight: 500;"
+                               onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
+                                github.com/estebang
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Expertise Areas -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem;">
+        <div style="background: var(--card-background); padding: 2rem; border-radius: 16px; box-shadow: var(--shadow);">
+            <h3 style="margin-bottom: 1.5rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+                <div style="background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: white; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-code"></i>
+                </div>
+                Technical Expertise
+            </h3>
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <div style="background: var(--primary-color); color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem;">
+                        <i class="fas fa-check"></i>
+                    </div>
+                    <span style="color: var(--text-primary);">GitHub Platform & DevOps</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <div style="background: var(--primary-color); color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem;">
+                        <i class="fas fa-check"></i>
+                    </div>
+                    <span style="color: var(--text-primary);">.NET & ASP.NET Core Development</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <div style="background: var(--primary-color); color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem;">
+                        <i class="fas fa-check"></i>
+                    </div>
+                    <span style="color: var(--text-primary);">CI/CD Pipeline Design</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <div style="background: var(--primary-color); color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem;">
+                        <i class="fas fa-check"></i>
+                    </div>
+                    <span style="color: var(--text-primary);">Cloud Architecture (Azure)</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <div style="background: var(--primary-color); color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem;">
+                        <i class="fas fa-check"></i>
+                    </div>
+                    <span style="color: var(--text-primary);">AI-Assisted Development</span>
+                </div>
+            </div>
+        </div>
+
+        <div style="background: var(--card-background); padding: 2rem; border-radius: 16px; box-shadow: var(--shadow);">
+            <h3 style="margin-bottom: 1.5rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+                <div style="background: linear-gradient(135deg, var(--accent-color), var(--secondary-color)); color: white; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-handshake"></i>
+                </div>
+                Let's Collaborate
+            </h3>
+            <p style="color: var(--text-secondary); margin-bottom: 1.5rem; line-height: 1.6;">
+                I'm passionate about helping teams accelerate their software delivery while maintaining security and quality. 
+                Whether you're looking to optimize your GitHub workflows, implement modern DevOps practices, or explore 
+                AI-assisted development, I'd love to connect.
+            </p>
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                <div style="background: linear-gradient(135deg, #f0f9ff, #e0f2fe); padding: 1rem; border-radius: 8px; border-left: 4px solid var(--accent-color);">
+                    <div style="font-weight: 600; color: var(--accent-color); margin-bottom: 0.5rem;">
+                        <i class="fas fa-users"></i> Consulting & Training
+                    </div>
+                    <div style="color: var(--text-secondary); font-size: 0.9rem;">GitHub platform optimization and team enablement</div>
+                </div>
+                <div style="background: linear-gradient(135deg, #fef3c7, #fde68a); padding: 1rem; border-radius: 8px; border-left: 4px solid var(--secondary-color);">
+                    <div style="font-weight: 600; color: #d97706; margin-bottom: 0.5rem;">
+                        <i class="fas fa-microphone-alt"></i> Speaking Engagements
+                    </div>
+                    <div style="color: var(--text-secondary); font-size: 0.9rem;">Conference talks and workshop facilitation</div>
+                </div>
+                <div style="background: linear-gradient(135deg, #f0fdf4, #dcfce7); padding: 1rem; border-radius: 8px; border-left: 4px solid var(--primary-color);">
+                    <div style="font-weight: 600; color: var(--primary-color); margin-bottom: 0.5rem;">
+                        <i class="fas fa-code-branch"></i> Open Source
+                    </div>
+                    <div style="color: var(--text-secondary); font-size: 0.9rem;">Collaboration on GitHub projects and community initiatives</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Call to Action -->
+    <div style="background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: white; padding: 3rem; border-radius: 20px; text-align: center;">
+        <div style="font-size: 3rem; margin-bottom: 1rem;">💬</div>
+        <h2 style="font-size: 2rem; margin-bottom: 1rem; font-weight: 700;">Ready to Connect?</h2>
+        <p style="font-size: 1.2rem; opacity: 0.9; max-width: 600px; margin: 0 auto 2rem;">
+            Whether you're interested in discussing the latest in GitHub platform capabilities, exploring DevOps transformations, 
+            or simply want to chat about modern software development practices, I'm always happy to connect with fellow developers and industry professionals.
+        </p>
+        
+        <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-top: 2rem;">
+            <a href="mailto:esteban.garcia@lanternstudios.com" 
+               style="background: white; color: var(--primary-color); padding: 1rem 2rem; border-radius: 10px; text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 0.5rem; transition: transform 0.2s ease;"
+               onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+                <i class="fas fa-envelope"></i>
+                Send Email
+            </a>
+            <a href="https://linkedin.com/in/estebangarcia" target="_blank"
+               style="background: rgba(255, 255, 255, 0.2); color: white; padding: 1rem 2rem; border-radius: 10px; text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 0.5rem; border: 2px solid rgba(255, 255, 255, 0.3); transition: all 0.2s ease;"
+               onmouseover="this.style.background='rgba(255, 255, 255, 0.3)'" onmouseout="this.style.background='rgba(255, 255, 255, 0.2)'">
+                <i class="fab fa-linkedin-in"></i>
+                Connect on LinkedIn
+            </a>
+        </div>
+    </div>
+</div>
