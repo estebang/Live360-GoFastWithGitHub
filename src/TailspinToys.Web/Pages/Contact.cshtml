@@ -1,10 +1,189 @@
 @page
 @{
-    ViewData["Title"] = "Contact";
+    ViewData["Title"] = "Contact Us";
     Layout = "_Layout";
 }
 
-<h1>Contact</h1>
+<section class="hero">
+    <h1><i class="fas fa-envelope"></i> Contact Us</h1>
+    <p>Get in touch with the TailspinToys team and learn more about our fundraising platform</p>
+</section>
 
-<p>Esteban Garcia</p>
-<p>GitHub: <a href="https://github.com/estebang" target="_blank">https://github.com/estebang</a></p>
+<div style="display: grid; gap: 2rem; margin-bottom: 2rem;">
+    <!-- Main Contact Section -->
+    <div style="background: var(--card-background); border-radius: 20px; padding: 3rem; box-shadow: var(--shadow); position: relative; overflow: hidden;">
+        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 6px; background: linear-gradient(90deg, var(--primary-color), var(--secondary-color), var(--accent-color));"></div>
+        
+        <div style="display: grid; grid-template-columns: 1fr auto; gap: 3rem; align-items: start;">
+            <div>
+                <h2 style="font-size: 2.5rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1rem;">
+                    Let's Connect!
+                </h2>
+                <p style="font-size: 1.2rem; line-height: 1.7; color: var(--text-secondary); margin-bottom: 2rem;">
+                    Have questions about our platform, want to collaborate, or interested in learning more about modern development practices? 
+                    We'd love to hear from you! Reach out through any of the channels below.
+                </p>
+                
+                <!-- Contact Information -->
+                <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                    <!-- Email -->
+                    <div style="display: flex; align-items: center; gap: 1rem; padding: 1.5rem; background: linear-gradient(135deg, #f0f9ff, #e0f2fe); border-radius: 16px; border-left: 4px solid var(--primary-color);">
+                        <div style="background: var(--primary-color); color: white; width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-envelope"></i>
+                        </div>
+                        <div>
+                            <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem;">Email</div>
+                            <a href="mailto:esteban.garcia@lanternstudios.com" style="color: var(--primary-color); text-decoration: none; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem;">
+                                esteban.garcia@lanternstudios.com
+                                <i class="fas fa-external-link-alt" style="font-size: 0.8rem;"></i>
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- LinkedIn -->
+                    <div style="display: flex; align-items: center; gap: 1rem; padding: 1.5rem; background: linear-gradient(135deg, #f0f4ff, #e8f2ff); border-radius: 16px; border-left: 4px solid #0077b5;">
+                        <div style="background: #0077b5; color: white; width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                            <i class="fab fa-linkedin-in"></i>
+                        </div>
+                        <div>
+                            <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem;">LinkedIn</div>
+                            <a href="https://linkedin.com/in/estebangarcia" target="_blank" style="color: #0077b5; text-decoration: none; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem;">
+                                linkedin.com/in/estebangarcia
+                                <i class="fas fa-external-link-alt" style="font-size: 0.8rem;"></i>
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- GitHub -->
+                    <div style="display: flex; align-items: center; gap: 1rem; padding: 1.5rem; background: linear-gradient(135deg, #f8fafc, #f1f5f9); border-radius: 16px; border-left: 4px solid #24292f;">
+                        <div style="background: #24292f; color: white; width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                            <i class="fab fa-github"></i>
+                        </div>
+                        <div>
+                            <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem;">GitHub</div>
+                            <a href="https://github.com/estebang" target="_blank" style="color: #24292f; text-decoration: none; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem;">
+                                github.com/estebang
+                                <i class="fas fa-external-link-alt" style="font-size: 0.8rem;"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Profile Card -->
+            <div style="text-align: center; min-width: 280px;">
+                <div style="background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: white; padding: 2.5rem; border-radius: 20px; margin-bottom: 1rem; box-shadow: var(--shadow);">
+                    <div style="background: rgba(255, 255, 255, 0.2); width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; font-size: 2rem;">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div style="font-size: 1.4rem; font-weight: 700; margin-bottom: 0.5rem;">Esteban Garcia</div>
+                    <div style="font-size: 1rem; opacity: 0.9; margin-bottom: 1rem;">Software Engineer & Developer Advocate</div>
+                    <div style="font-size: 0.9rem; opacity: 0.8; line-height: 1.4;">
+                        Passionate about modern development practices, GitHub platform, and helping teams deliver software faster and more securely.
+                    </div>
+                </div>
+                
+                <div style="background: var(--card-background); padding: 1.5rem; border-radius: 16px; box-shadow: var(--shadow);">
+                    <div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1rem;">Quick Response Time</div>
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; color: var(--accent-color); font-weight: 600;">
+                        <i class="fas fa-clock"></i>
+                        Usually within 24 hours
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Additional Information Sections -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 2rem;">
+        <!-- About This Project -->
+        <div style="background: var(--card-background); padding: 2rem; border-radius: 16px; box-shadow: var(--shadow);">
+            <h3 style="margin-bottom: 1.5rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+                <div style="background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: white; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-info-circle"></i>
+                </div>
+                About This Project
+            </h3>
+            <p style="color: var(--text-secondary); margin-bottom: 1.5rem; line-height: 1.6;">
+                TailspinToys was built for the Live360 Orlando 2025 conference to demonstrate the complete GitHub development workflow—from AI-assisted coding with Copilot to secure deployment with Actions and Advanced Security.
+            </p>
+            <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                <a href="/About" style="background: var(--primary-color); color: white; padding: 0.75rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 0.5rem; transition: all 0.2s ease;">
+                    <i class="fas fa-arrow-right"></i>
+                    Learn More
+                </a>
+                <a href="/" style="background: transparent; color: var(--primary-color); padding: 0.75rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 600; border: 2px solid var(--primary-color); transition: all 0.2s ease;">
+                    View Campaigns
+                </a>
+            </div>
+        </div>
+
+        <!-- Get Involved -->
+        <div style="background: var(--card-background); padding: 2rem; border-radius: 16px; box-shadow: var(--shadow);">
+            <h3 style="margin-bottom: 1.5rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+                <div style="background: linear-gradient(135deg, var(--accent-color), var(--primary-color)); color: white; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-handshake"></i>
+                </div>
+                Get Involved
+            </h3>
+            <p style="color: var(--text-secondary); margin-bottom: 1.5rem; line-height: 1.6;">
+                Interested in contributing to open source projects or learning more about modern development practices? Here are some ways to get started:
+            </p>
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <div style="background: var(--accent-color); color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem;">
+                        <i class="fas fa-code-branch"></i>
+                    </div>
+                    <span style="color: var(--text-primary); font-size: 0.9rem;">Fork and contribute to this project</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <div style="background: var(--accent-color); color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem;">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <span style="color: var(--text-primary); font-size: 0.9rem;">Explore GitHub Copilot features</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <div style="background: var(--accent-color); color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem;">
+                        <i class="fas fa-rocket"></i>
+                    </div>
+                    <span style="color: var(--text-primary); font-size: 0.9rem;">Learn GitHub Actions CI/CD</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <div style="background: var(--accent-color); color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem;">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <span style="color: var(--text-primary); font-size: 0.9rem;">Implement security best practices</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Conference Call-to-Action -->
+    <div style="background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: white; padding: 3rem; border-radius: 20px; text-align: center;">
+        <div style="font-size: 3rem; margin-bottom: 1rem;">🎯</div>
+        <h2 style="font-size: 2rem; margin-bottom: 1rem; font-weight: 700;">See You at Live360 Orlando 2025!</h2>
+        <p style="font-size: 1.2rem; opacity: 0.9; max-width: 600px; margin: 0 auto 2rem;">
+            Join us at the conference to learn how to accelerate your development workflow with GitHub's integrated platform. 
+            From AI-powered coding to secure cloud deployment—discover how to move fast and stay secure.
+        </p>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 2rem; margin: 2rem 0; max-width: 500px; margin: 2rem auto;">
+            <div>
+                <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem;">Session VSW04</div>
+                <div style="opacity: 0.9; font-size: 0.9rem;">Go Fast with GitHub</div>
+            </div>
+            <div>
+                <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem;">Nov 20, 2025</div>
+                <div style="opacity: 0.9; font-size: 0.9rem;">Wednesday Session</div>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-top: 2rem;">
+            <a href="https://live360events.com/events/orlando-2025/sessions/wednesday/vsw04-github.aspx" target="_blank" 
+               style="background: white; color: var(--primary-color); padding: 1rem 2rem; border-radius: 10px; text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 0.5rem; transition: transform 0.2s ease;">
+                <i class="fas fa-calendar-alt"></i>
+                Register for Session
+            </a>
+        </div>
+    </div>
+</div>
