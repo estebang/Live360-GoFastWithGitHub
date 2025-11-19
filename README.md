@@ -1,5 +1,8 @@
 # TailspinToys
 
+[![CI/CD Pipeline](https://github.com/estebang/Live360-GoFastWithGitHub/actions/workflows/ci.yml/badge.svg)](https://github.com/estebang/Live360-GoFastWithGitHub/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/estebang/Live360-GoFastWithGitHub/actions/workflows/ci.yml/badge.svg?event=pull_request)](https://github.com/estebang/Live360-GoFastWithGitHub/actions/workflows/ci.yml)
+
 A modern ASP.NET Core web application for managing fundraising campaigns built with .NET 9 and Entity Framework Core.
 
 ## 📋 Overview
@@ -112,6 +115,44 @@ The project uses xUnit for testing. Test files are located in the `tests/Tailspi
 - Integration tests for web functionality (add as needed)
 
 ## 📦 Build and Deployment
+
+This project uses a comprehensive CI/CD pipeline with GitHub Actions for automated building, testing, and deployment to Azure.
+
+### 🚀 Automated CI/CD Pipeline
+
+The pipeline provides:
+- **Continuous Integration**: Automated builds and tests on all branches
+- **Continuous Deployment**: Automatic deployment to development and production environments
+- **Security Scanning**: CodeQL analysis for security vulnerabilities
+- **Quality Gates**: Comprehensive testing with coverage reporting
+
+#### Pipeline Triggers
+- **Pull Requests** → Build, test, and security scan
+- **Develop Branch** → Build, test, and deploy to development environment
+- **Main Branch** → Build, test, and deploy to production environment
+
+#### Environments
+- **Development**: `https://{AZURE_WEBAPP_NAME_DEV}.azurewebsites.net`
+- **Production**: `https://{AZURE_WEBAPP_NAME_PROD}.azurewebsites.net`
+
+### 🔧 Pipeline Configuration
+
+See [Pipeline Configuration Guide](.github/PIPELINE_CONFIG.md) for detailed setup instructions including:
+- Required GitHub secrets and variables
+- Azure OIDC authentication setup
+- Environment configuration
+- Troubleshooting guide
+
+### 🏥 Health Monitoring
+
+The application includes a health check endpoint at `/health` that returns:
+```json
+{
+  "Status": "Healthy",
+  "Timestamp": "2024-01-15T10:30:00Z",
+  "Version": "1.0.123-abc1234"
+}
+```
 
 ### Local Build
 ```bash

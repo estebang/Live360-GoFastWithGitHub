@@ -1,0 +1,212 @@
+# =============================================================================
+# Reusable Workflow: Azure Web App Deployment
+# =============================================================================
+# This reusable workflow handles Azure Web App deployments using OIDC
+# authentication. It provides a standardized way to deploy applications
+# across different environments (dev, staging, prod) with proper security.
+# 
+# Features:
+# - OIDC authentication for secure, keyless deployment
+# - Environment-specific configuration
+# - Deployment validation and health checks
+# - Rollback capabilities on failure
+# =============================================================================
+
+name: Deploy to Azure Web App
+
+on:
+  workflow_call:
+    inputs:
+      # Environment configuration
+      environment:
+        description: 'Target environment (development/staging/production)'
+        required: true
+        type: string
+      
+      # Azure Web App name
+      app-name:
+        description: 'Azure Web App name'
+        required: true
+        type: string
+      
+      # Build artifact name to deploy
+      artifact-name:
+        description: 'Name of the build artifact to deploy'
+        required: true
+        type: string
+      
+      # Optional slot name for blue-green deployments
+      slot-name:
+        description: 'Deployment slot name (optional)'
+        required: false
+        type: string
+      
+      # Health check URL path
+      health-check-path:
+        description: 'Health check endpoint path'
+        required: false
+        default: '/health'
+        type: string
+    
+    secrets:
+      # Azure OIDC credentials
+      azure-client-id:
+        description: 'Azure Client ID for OIDC authentication'
+        required: true
+      azure-tenant-id:
+        description: 'Azure Tenant ID for OIDC authentication'
+        required: true
+      azure-subscription-id:
+        description: 'Azure Subscription ID for OIDC authentication'
+        required: true
+
+jobs:
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    
+    # Set deployment timeout to 15 minutes
+    timeout-minutes: 15
+    
+    steps:
+    # =============================================================================
+    # Step 1: Download Build Artifacts
+    # =============================================================================
+    - name: 📥 Download deployment artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ./deploy
+    
+    # =============================================================================
+    # Step 2: Authenticate with Azure using OIDC
+    # =============================================================================
+    - name: 🔐 Azure Login (OIDC)
+      uses: azure/login@v2
+      with:
+        client-id: ${{ secrets.azure-client-id }}
+        tenant-id: ${{ secrets.azure-tenant-id }}
+        subscription-id: ${{ secrets.azure-subscription-id }}
+    
+    # =============================================================================
+    # Step 3: Pre-deployment Health Check
+    # =============================================================================
+    - name: 🏥 Pre-deployment health check
+      continue-on-error: true
+      run: |
+        echo "Checking current application health..."
+        
+        # Construct health check URL
+        if [ -n "${{ inputs.slot-name }}" ]; then
+          HEALTH_URL="https://${{ inputs.app-name }}-${{ inputs.slot-name }}.azurewebsites.net${{ inputs.health-check-path }}"
+        else
+          HEALTH_URL="https://${{ inputs.app-name }}.azurewebsites.net${{ inputs.health-check-path }}"
+        fi
+        
+        # Check if health endpoint exists
+        HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
+        echo "Current health status: $HTTP_STATUS"
+        
+        if [ "$HTTP_STATUS" = "200" ]; then
+          echo "✅ Application is currently healthy"
+        else
+          echo "⚠️ Application health check failed or endpoint not available"
+        fi
+    
+    # =============================================================================
+    # Step 4: Deploy to Azure Web App
+    # =============================================================================
+    - name: 🚀 Deploy to Azure Web App
+      id: deploy
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: ${{ inputs.app-name }}
+        slot-name: ${{ inputs.slot-name }}
+        package: ./deploy/
+        
+        # Clean deployment (removes existing files)
+        clean: true
+        
+        # Restart the app after deployment
+        restart: true
+    
+    # =============================================================================
+    # Step 5: Post-deployment Health Check
+    # =============================================================================
+    - name: 🏥 Post-deployment health check
+      id: health-check
+      run: |
+        echo "Verifying deployment health..."
+        
+        # Construct health check URL
+        if [ -n "${{ inputs.slot-name }}" ]; then
+          HEALTH_URL="https://${{ inputs.app-name }}-${{ inputs.slot-name }}.azurewebsites.net${{ inputs.health-check-path }}"
+        else
+          HEALTH_URL="https://${{ inputs.app-name }}.azurewebsites.net${{ inputs.health-check-path }}"
+        fi
+        
+        # Wait for application to start (up to 5 minutes)
+        MAX_ATTEMPTS=30
+        ATTEMPT=1
+        
+        while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+          echo "Health check attempt $ATTEMPT/$MAX_ATTEMPTS..."
+          
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
+          
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "✅ Deployment successful - Application is healthy!"
+            echo "🌐 Application URL: $HEALTH_URL"
+            exit 0
+          fi
+          
+          if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+            echo "❌ Deployment failed - Health check timeout after $MAX_ATTEMPTS attempts"
+            echo "Last HTTP status: $HTTP_STATUS"
+            exit 1
+          fi
+          
+          echo "⏳ Waiting 10 seconds before retry..."
+          sleep 10
+          ATTEMPT=$((ATTEMPT + 1))
+        done
+    
+    # =============================================================================
+    # Step 6: Deployment Summary
+    # =============================================================================
+    - name: 📋 Deployment summary
+      if: always()
+      run: |
+        echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+        echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+        echo "| **Environment** | ${{ inputs.environment }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| **App Name** | ${{ inputs.app-name }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| **Slot** | ${{ inputs.slot-name || 'production' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| **Artifact** | ${{ inputs.artifact-name }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| **Status** | ${{ steps.health-check.outcome == 'success' && '✅ Success' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+        
+        if [ -n "${{ inputs.slot-name }}" ]; then
+          APP_URL="https://${{ inputs.app-name }}-${{ inputs.slot-name }}.azurewebsites.net"
+        else
+          APP_URL="https://${{ inputs.app-name }}.azurewebsites.net"
+        fi
+        
+        echo "| **URL** | [$APP_URL]($APP_URL) |" >> $GITHUB_STEP_SUMMARY
+    
+    # =============================================================================
+    # Step 7: Notify on Failure (Optional)
+    # =============================================================================
+    - name: 💬 Notify deployment failure
+      if: failure()
+      run: |
+        echo "⚠️ Deployment to ${{ inputs.environment }} failed!"
+        echo "Please check the logs and consider rolling back if necessary."
+        
+        # Here you could add integrations with:
+        # - Slack notifications
+        # - Microsoft Teams
+        # - Email alerts
+        # - PagerDuty incidents

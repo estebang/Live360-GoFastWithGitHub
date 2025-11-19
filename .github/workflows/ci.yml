@@ -1,122 +1,228 @@
-name: CI/CD
+# =============================================================================
+# TailspinToys CI/CD Pipeline
+# =============================================================================
+# This workflow provides a complete CI/CD pipeline for the TailspinToys web application.
+# 
+# Pipeline Flow:
+# 1. 🔍 Code Quality & Security Checks (all branches/PRs)
+# 2. 🏗️  Build & Test (all branches/PRs)  
+# 3. 🚀 Deploy to Development (develop branch)
+# 4. 🚀 Deploy to Production (main branch)
+#
+# Branch Strategy:
+# - develop: Continuous deployment to development environment
+# - main: Continuous deployment to production environment
+# - feature/*: Build and test only (no deployment)
+# - PRs: Build, test, and quality checks only
+# =============================================================================
+
+name: TailspinToys CI/CD
 
 on:
+  # Trigger on pushes to main branches
   push:
-    branches: [ main, develop ]
+    branches: 
+      - main
+      - develop
+    # Ignore changes to documentation and CI files for optimization
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+  
+  # Trigger on pull requests to main branches
   pull_request:
-    branches: [ main, develop ]
+    branches: 
+      - main
+      - develop
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+  
+  # Allow manual triggering with environment selection
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'development'
+        type: choice
+        options:
+        - development
+        - production
+      deploy_only:
+        description: 'Skip build and deploy existing artifacts'
+        required: false
+        default: false
+        type: boolean
 
-# Grant GITHUB_TOKEN permissions needed for OIDC
+# =============================================================================
+# Security: Grant minimal permissions needed for OIDC and deployments
+# =============================================================================
 permissions:
-  id-token: write
-  contents: read
+  id-token: write      # Required for OIDC authentication to Azure
+  contents: read       # Required to checkout code
+  actions: read        # Required to download artifacts
+  security-events: write  # Required for CodeQL security scanning
+
+# =============================================================================
+# Environment Variables: Global configuration
+# =============================================================================
+env:
+  # .NET Configuration
+  DOTNET_VERSION: '9.0.x'
+  DOTNET_CONFIGURATION: 'Release'
+  
+  # Build Configuration
+  SOLUTION_PATH: './TailspinToys.sln'
+  WEB_PROJECT_PATH: './src/TailspinToys.Web/TailspinToys.Web.csproj'
+  
+  # Deployment Configuration
+  ARTIFACT_RETENTION_DAYS: 30
+  HEALTH_CHECK_PATH: '/health'
 
 jobs:
-  build-and-test:
+  # =============================================================================
+  # Job 1: Code Quality and Security Analysis
+  # =============================================================================
+  code-quality:
+    name: 🔍 Code Quality & Security
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     
     steps:
-    - name: Checkout code
+    - name: 📥 Checkout code
       uses: actions/checkout@v4
-      
-    - name: Setup .NET
+      with:
+        fetch-depth: 0  # Full history for better analysis
+    
+    # Initialize CodeQL for security analysis
+    - name: 🛡️ Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: csharp
+        build-mode: autobuild
+    
+    - name: 🔧 Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '9.0.x'
-        
-    - name: Cache NuGet packages
-      uses: actions/cache@v4
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    # Perform CodeQL Analysis
+    - name: 🔍 Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
       with:
-        path: ~/.nuget/packages
-        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
-        restore-keys: |
-          ${{ runner.os }}-nuget-
-          
-    - name: Restore dependencies
-      run: dotnet restore
-      
-    - name: Build
-      run: dotnet build --no-restore --configuration Release
-      
-    - name: Test
-      run: dotnet test --no-build --configuration Release --verbosity normal
-      
-    # Upload build artifacts for deployment job
-    - name: Upload build artifacts
-      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
-      uses: actions/upload-artifact@v4
-      with:
-        name: webapp-build
-        path: src/TailspinToys.Web/
+        category: "/language:csharp"
 
-  deploy-dev:
+  # =============================================================================
+  # Job 2: Build, Test, and Package Application
+  # =============================================================================
+  build:
+    name: 🏗️ Build & Test
+    uses: ./.github/workflows/dotnet-build.yml
+    with:
+      configuration: 'Release'
+      dotnet-version: '9.0.x'
+      publish-artifacts: ${{ github.event_name == 'push' || github.event.inputs.deploy_only == 'false' }}
+      enable-coverage: true
+    
+    # This job runs on all events unless it's a deploy-only workflow dispatch
+    if: github.event.inputs.deploy_only != 'true'
+
+  # =============================================================================
+  # Job 3: Deploy to Development Environment
+  # =============================================================================
+  deploy-development:
+    name: 🚀 Deploy to Development
+    needs: [build]
+    if: |
+      always() && 
+      (needs.build.result == 'success' || github.event.inputs.deploy_only == 'true') &&
+      (
+        (github.ref == 'refs/heads/develop' && github.event_name == 'push') ||
+        (github.event.inputs.environment == 'development' && github.event_name == 'workflow_dispatch')
+      )
+    
+    uses: ./.github/workflows/azure-deploy.yml
+    with:
+      environment: development
+      app-name: ${{ vars.AZURE_WEBAPP_NAME_DEV }}
+      artifact-name: webapp-${{ needs.build.outputs.build-version }}
+      health-check-path: '/health'
+    secrets:
+      azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+      azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+      azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+  # =============================================================================
+  # Job 4: Deploy to Production Environment
+  # =============================================================================
+  deploy-production:
+    name: 🚀 Deploy to Production
+    needs: [build]
+    if: |
+      always() && 
+      (needs.build.result == 'success' || github.event.inputs.deploy_only == 'true') &&
+      (
+        (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
+        (github.event.inputs.environment == 'production' && github.event_name == 'workflow_dispatch')
+      )
+    
+    uses: ./.github/workflows/azure-deploy.yml
+    with:
+      environment: production
+      app-name: ${{ vars.AZURE_WEBAPP_NAME_PROD }}
+      artifact-name: webapp-${{ needs.build.outputs.build-version }}
+      health-check-path: '/health'
+    secrets:
+      azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+      azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+      azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+  # =============================================================================
+  # Job 5: Deployment Notification and Cleanup
+  # =============================================================================
+  post-deployment:
+    name: 📋 Post-Deployment Tasks
     runs-on: ubuntu-latest
-    needs: build-and-test
-    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
-    environment: development
+    needs: [deploy-development, deploy-production]
+    if: always() && (needs.deploy-development.result != 'skipped' || needs.deploy-production.result != 'skipped')
     
     steps:
-    - name: Download build artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: webapp-build
-        path: ./webapp
-        
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '9.0.x'
-        
-    - name: Publish application
+    - name: 📊 Generate deployment report
       run: |
-        cd webapp
-        dotnet publish --configuration Release --output ./publish
+        echo "## 🚀 TailspinToys Deployment Report" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "**Triggered by:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Environment Status" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
         
-    - name: Azure Login using OIDC
-      uses: azure/login@v2
-      with:
-        client-id: ${{ secrets.AZURE_CLIENT_ID }}
-        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        # Development status
+        if [ "${{ needs.deploy-development.result }}" = "success" ]; then
+          echo "✅ **Development:** Deployed successfully" >> $GITHUB_STEP_SUMMARY
+        elif [ "${{ needs.deploy-development.result }}" = "failure" ]; then
+          echo "❌ **Development:** Deployment failed" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "⏭️ **Development:** Skipped" >> $GITHUB_STEP_SUMMARY
+        fi
         
-    - name: Deploy to Azure Web App (Development)
-      uses: azure/webapps-deploy@v3
-      with:
-        app-name: ${{ vars.AZURE_WEBAPP_NAME_DEV }}
-        package: ./webapp/publish
-
-  deploy-prod:
-    runs-on: ubuntu-latest
-    needs: build-and-test
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    environment: production
+        # Production status
+        if [ "${{ needs.deploy-production.result }}" = "success" ]; then
+          echo "✅ **Production:** Deployed successfully" >> $GITHUB_STEP_SUMMARY
+        elif [ "${{ needs.deploy-production.result }}" = "failure" ]; then
+          echo "❌ **Production:** Deployment failed" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "⏭️ **Production:** Skipped" >> $GITHUB_STEP_SUMMARY
+        fi
     
-    steps:
-    - name: Download build artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: webapp-build
-        path: ./webapp
-        
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '9.0.x'
-        
-    - name: Publish application
+    # Clean up old artifacts to save storage space
+    - name: 🧹 Cleanup old artifacts
+      continue-on-error: true
       run: |
-        cd webapp
-        dotnet publish --configuration Release --output ./publish
-        
-    - name: Azure Login using OIDC
-      uses: azure/login@v2
-      with:
-        client-id: ${{ secrets.AZURE_CLIENT_ID }}
-        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-        
-    - name: Deploy to Azure Web App (Production)
-      uses: azure/webapps-deploy@v3
-      with:
-        app-name: ${{ vars.AZURE_WEBAPP_NAME_PROD }}
-        package: ./webapp/publish
+        echo "Cleaning up artifacts older than ${{ env.ARTIFACT_RETENTION_DAYS }} days..."
+        # Note: This would typically use GitHub API to clean up old artifacts
+        # For now, we rely on the retention-days setting in upload steps

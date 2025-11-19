@@ -1,0 +1,179 @@
+# =============================================================================
+# Reusable Workflow: .NET Build, Test, and Package
+# =============================================================================
+# This reusable workflow handles common .NET operations including:
+# - Dependency restoration with caching
+# - Building the application
+# - Running unit tests with coverage
+# - Publishing the application for deployment
+# 
+# Usage: Called by other workflows to ensure consistent build processes
+# =============================================================================
+
+name: .NET Build and Test
+
+on:
+  workflow_call:
+    inputs:
+      # Configuration for the build (Debug/Release)
+      configuration:
+        description: 'Build configuration (Debug/Release)'
+        required: false
+        default: 'Release'
+        type: string
+      
+      # .NET version to use for builds
+      dotnet-version:
+        description: '.NET version to use'
+        required: false
+        default: '9.0.x'
+        type: string
+      
+      # Whether to publish artifacts for deployment
+      publish-artifacts:
+        description: 'Whether to publish build artifacts'
+        required: false
+        default: false
+        type: boolean
+      
+      # Whether to run tests with coverage reporting
+      enable-coverage:
+        description: 'Enable test coverage reporting'
+        required: false
+        default: true
+        type: boolean
+    
+    outputs:
+      # Version information for deployment tracking
+      build-version:
+        description: 'Build version number'
+        value: ${{ jobs.build.outputs.version }}
+
+jobs:
+  build:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    
+    steps:
+    # =============================================================================
+    # Step 1: Checkout Source Code
+    # =============================================================================
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v4
+      with:
+        # Fetch full history for better version generation
+        fetch-depth: 0
+    
+    # =============================================================================
+    # Step 2: Setup .NET Environment
+    # =============================================================================
+    - name: 🔧 Setup .NET ${{ inputs.dotnet-version }}
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ inputs.dotnet-version }}
+        
+    # =============================================================================
+    # Step 3: Cache NuGet Packages for Performance
+    # =============================================================================
+    - name: 💾 Cache NuGet packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        # Cache key includes OS and hash of all project files
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/*.fsproj', '**/*.vbproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+    
+    # =============================================================================
+    # Step 4: Generate Build Version
+    # =============================================================================
+    - name: 🏷️ Generate version number
+      id: version
+      run: |
+        # Generate semantic version based on commit count and hash
+        SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+        VERSION="1.0.${{ github.run_number }}-${SHORT_SHA}"
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Generated version: $VERSION"
+    
+    # =============================================================================
+    # Step 5: Restore Dependencies
+    # =============================================================================
+    - name: 📦 Restore dependencies
+      run: |
+        echo "Restoring NuGet packages..."
+        dotnet restore --verbosity minimal
+        echo "✅ Dependencies restored successfully"
+    
+    # =============================================================================
+    # Step 6: Build Application
+    # =============================================================================
+    - name: 🔨 Build solution
+      run: |
+        echo "Building solution in ${{ inputs.configuration }} configuration..."
+        dotnet build \
+          --no-restore \
+          --configuration ${{ inputs.configuration }} \
+          --verbosity minimal \
+          -p:Version=${{ steps.version.outputs.version }}
+        echo "✅ Build completed successfully"
+    
+    # =============================================================================
+    # Step 7: Run Unit Tests
+    # =============================================================================
+    - name: 🧪 Run tests
+      run: |
+        echo "Running unit tests..."
+        
+        # Base test command
+        TEST_CMD="dotnet test --no-build --configuration ${{ inputs.configuration }} --verbosity normal"
+        
+        # Add coverage collection if enabled
+        if [ "${{ inputs.enable-coverage }}" = "true" ]; then
+          TEST_CMD="$TEST_CMD --collect:'XPlat Code Coverage' --results-directory ./coverage"
+          echo "📊 Test coverage collection enabled"
+        fi
+        
+        # Execute tests
+        $TEST_CMD
+        echo "✅ All tests passed"
+    
+    # =============================================================================
+    # Step 8: Upload Test Coverage (if enabled)
+    # =============================================================================
+    - name: 📊 Upload coverage reports
+      if: inputs.enable-coverage
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-reports
+        path: coverage/
+        retention-days: 7
+    
+    # =============================================================================
+    # Step 9: Publish Application (if requested)
+    # =============================================================================
+    - name: 📦 Publish application
+      if: inputs.publish-artifacts
+      run: |
+        echo "Publishing application for deployment..."
+        dotnet publish src/TailspinToys.Web/TailspinToys.Web.csproj \
+          --configuration ${{ inputs.configuration }} \
+          --output ./publish \
+          --no-build \
+          -p:Version=${{ steps.version.outputs.version }}
+        echo "✅ Application published successfully"
+    
+    # =============================================================================
+    # Step 10: Upload Build Artifacts (if requested)
+    # =============================================================================
+    - name: 📤 Upload build artifacts
+      if: inputs.publish-artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: webapp-${{ steps.version.outputs.version }}
+        path: ./publish/
+        retention-days: 30
+        compression-level: 6

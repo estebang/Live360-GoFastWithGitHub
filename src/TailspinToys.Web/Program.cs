@@ -16,6 +16,13 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Error");
 }
 
+// Add health check endpoint for CI/CD pipeline
+app.MapGet("/health", () => new { 
+    Status = "Healthy", 
+    Timestamp = DateTime.UtcNow,
+    Version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() 
+});
+
 app.UseStaticFiles();
 app.UseRouting();
 app.MapRazorPages();
