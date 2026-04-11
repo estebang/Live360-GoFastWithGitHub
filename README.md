@@ -36,7 +36,7 @@ TailspinToys/
 │   └── TailspinToys.Web.Tests/     # Unit tests
 ├── demo/
 │   ├── demo-runbook.md             # Conference demo walkthrough
-│   └── VSW04 - Take Action and Go fast with GitHub - Esteban Garcia.pptx  # Live360 presentation
+│   └── VSW04 - Take Action and Go fast with GitHub - Esteban Garcia.pptx  # Orlando Code Camp presentation
 └── TailspinToys.sln               # Solution file
 ```
 
@@ -167,7 +167,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## 📚 Conference Materials
 
-This application was built as a demonstration for **Live360 Orlando 2025**:
+This application was built as a demonstration for **Orlando Code Camp 2026**:
 
 - **📋 Demo Walkthrough**: [`demo/demo-runbook.md`](demo/demo-runbook.md) - Step-by-step conference demo guide
 - **📊 Presentation Slides**: [`demo/VSW04 - Take Action and Go fast with GitHub - Esteban Garcia.pptx`](demo/VSW04%20-%20Take%20Action%20and%20Go%20fast%20with%20GitHub%20-%20Esteban%20Garcia.pptx) - Complete session presentation
@@ -183,4 +183,4 @@ For questions or issues:
 
 ---
 
-*Built with ❤️ using ASP.NET Core for Live360 Orlando 2025*
+*Built with ❤️ using ASP.NET Core for Orlando Code Camp 2026*

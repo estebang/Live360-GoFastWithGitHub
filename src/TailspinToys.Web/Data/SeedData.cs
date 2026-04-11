@@ -30,7 +30,7 @@ public static class SeedData
             },
             new Campaign 
             { 
-                Name = "Live360 STEM Scholarship Fund", 
+                Name = "Orlando Code Camp STEM Scholarship Fund", 
                 Description = "Supporting aspiring developers and IT professionals with conference attendance, training materials, and mentorship opportunities. Empowering the future of technology.", 
                 GoalAmount = 100000, 
                 CurrentAmount = 87500 
