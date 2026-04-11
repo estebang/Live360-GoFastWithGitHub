@@ -2,7 +2,14 @@ name: CI/CD
 
 on:
   push:
+    paths-ignore:
+      - '**/*.md'
+      - 'demo/**'
   pull_request:
+    paths-ignore:
+      - '**/*.md'
+      - 'demo/**'
+  workflow_dispatch:
 
 # Default to least privilege for all jobs; elevate only where required.
 permissions:
@@ -14,54 +21,80 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  # Pull request validation: compile and test without deployment.
-  ci:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup .NET 9 SDK with NuGet cache
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 9.0.x
-          cache: true
-          cache-dependency-path: |
-            TailspinToys.sln
-            src/TailspinToys.Web/TailspinToys.Web.csproj
-            tests/TailspinToys.Web.Tests/TailspinToys.Web.Tests.csproj
-
-      - name: Restore dependencies
-        run: dotnet restore TailspinToys.sln
-
-      - name: Build
-        run: dotnet build TailspinToys.sln --configuration Release --no-restore
-
-      - name: Test
-        run: dotnet test TailspinToys.sln --configuration Release --no-build --verbosity normal
+  # Shared quality gate reused for push, pull_request, and manual runs.
+  validate:
+    uses: ./.github/workflows/reusable-dotnet-validate.yml
+    with:
+      dotnet_version: 9.0.x
+      solution_path: TailspinToys.sln
+      build_configuration: Release
 
   # Continuous deployment to the dev environment on every push.
   deploy-dev:
     if: github.event_name == 'push' && github.ref != 'refs/heads/main'
+    needs: validate
     uses: ./.github/workflows/reusable-dotnet-deploy.yml
     permissions:
       contents: read
       id-token: write
     with:
       environment_name: dev
+    # Environment-level secret scoping still applies in the called workflow.
     secrets: inherit
 
-  # Promotion to prod only from main after dev deployment succeeds.
+  # Promotion to prod only from main after validation succeeds.
   deploy-prod:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: deploy-dev
+    needs: validate
     uses: ./.github/workflows/reusable-dotnet-deploy.yml
     permissions:
       contents: read
       id-token: write
     with:
       environment_name: prod
+    # Environment-level secret scoping still applies in the called workflow.
     secrets: inherit
+
+  # Adds explicit notifications for failed pull request validation/deployment.
+  notify-failure:
+    if: always()
+    runs-on: ubuntu-latest
+    needs:
+      - validate
+      - deploy-dev
+      - deploy-prod
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Publish failure summary
+        if: needs.validate.result == 'failure' || needs.deploy-dev.result == 'failure' || needs.deploy-prod.result == 'failure'
+        run: |
+          echo "## Workflow failure summary" >> $GITHUB_STEP_SUMMARY
+          echo "- validate: ${{ needs.validate.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- deploy-dev: ${{ needs.deploy-dev.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- deploy-prod: ${{ needs.deploy-prod.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Comment on pull request when failures occur
+        if: github.event_name == 'pull_request' && (needs.validate.result == 'failure' || needs.deploy-dev.result == 'failure' || needs.deploy-prod.result == 'failure')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = [
+              'CI/CD workflow failed for this PR.',
+              '',
+              `- validate: ${{ needs.validate.result }}`,
+              `- deploy-dev: ${{ needs.deploy-dev.result }}`,
+              `- deploy-prod: ${{ needs.deploy-prod.result }}`,
+              '',
+              `Run details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            });

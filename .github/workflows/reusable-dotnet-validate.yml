@@ -1,0 +1,52 @@
+name: Reusable .NET Validate
+
+on:
+  workflow_call:
+    inputs:
+      dotnet_version:
+        description: .NET SDK version to use
+        required: false
+        type: string
+        default: 9.0.x
+      solution_path:
+        description: Path to solution file
+        required: false
+        type: string
+        default: TailspinToys.sln
+      build_configuration:
+        description: Build configuration
+        required: false
+        type: string
+        default: Release
+
+jobs:
+  validate:
+    name: Restore, build, and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK with NuGet cache
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ inputs.dotnet_version }}
+          cache: true
+          cache-dependency-path: |
+            **/*.csproj
+            **/packages.lock.json
+            **/global.json
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ inputs.solution_path }}
+
+      - name: Build
+        run: dotnet build ${{ inputs.solution_path }} --configuration ${{ inputs.build_configuration }} --no-restore
+
+      - name: Test
+        run: dotnet test ${{ inputs.solution_path }} --configuration ${{ inputs.build_configuration }} --no-build --verbosity normal

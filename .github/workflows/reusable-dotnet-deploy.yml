@@ -7,12 +7,20 @@ on:
         description: Target GitHub environment to deploy to
         required: true
         type: string
+    secrets:
+      AZURE_CLIENT_ID:
+        required: true
+      AZURE_TENANT_ID:
+        required: true
+      AZURE_SUBSCRIPTION_ID:
+        required: true
 
 jobs:
   build-test-publish-deploy:
     name: Build, Test, Publish, and Deploy
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment_name }}
+    timeout-minutes: 30
 
     # OIDC requires id-token: write so azure/login can exchange the GitHub token.
     permissions:
@@ -29,9 +37,16 @@ jobs:
           dotnet-version: 9.0.x
           cache: true
           cache-dependency-path: |
-            TailspinToys.sln
-            src/TailspinToys.Web/TailspinToys.Web.csproj
-            tests/TailspinToys.Web.Tests/TailspinToys.Web.Tests.csproj
+            **/*.csproj
+            **/packages.lock.json
+            **/global.json
+
+      - name: Validate deployment configuration
+        run: |
+          if [ -z "${{ vars.AZURE_WEBAPP_NAME }}" ]; then
+            echo "::error::AZURE_WEBAPP_NAME is not set for environment '${{ inputs.environment_name }}'."
+            exit 1
+          fi
 
       # Restore and build once, then reuse outputs in test/publish for faster execution.
       - name: Restore dependencies
@@ -46,6 +61,13 @@ jobs:
       - name: Publish web app
         run: dotnet publish src/TailspinToys.Web/TailspinToys.Web.csproj --configuration Release --no-build --output ./publish
 
+      - name: Verify publish output exists
+        run: |
+          if [ ! -d "./publish" ] || [ -z "$(ls -A ./publish)" ]; then
+            echo "::error::Publish output folder ./publish is missing or empty."
+            exit 1
+          fi
+
       - name: Azure login with OIDC
         uses: azure/login@v2
         with:
@@ -59,3 +81,10 @@ jobs:
         with:
           app-name: ${{ vars.AZURE_WEBAPP_NAME }}
           package: ./publish
+
+      - name: Deployment summary
+        if: success()
+        run: |
+          echo "## Deployment completed" >> $GITHUB_STEP_SUMMARY
+          echo "- environment: ${{ inputs.environment_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- web app: ${{ vars.AZURE_WEBAPP_NAME }}" >> $GITHUB_STEP_SUMMARY
