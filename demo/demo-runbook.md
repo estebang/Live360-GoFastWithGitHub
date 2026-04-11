@@ -103,9 +103,12 @@ Checkout `demo/ci-start`
 
 ```
 Expand this workflow to deploy the TailspinToys.Web project
-to my Azure Web App. Use OIDC if available; otherwise use
-the publish profile secret. Deploy only on push to main.
+to my Azure Web App. Use OIDC (OpenID Connect). Deploy only on push to any branch.
 Add build, publish, and deploy steps.
+
+Use the following secret names: AZURE_CLIENT_ID, AZURE_SUBSCRIPTION_ID, AZURE_TENANT_ID
+
+And use this variable names: AZURE_WEBAPP_NAME
 ```
 
 3. Review → commit → push  
