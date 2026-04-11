@@ -1,0 +1,106 @@
+name: DotNet CI CD
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build_test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+          cache: true
+
+      - name: Restore
+        run: dotnet restore TailspinToys.sln
+
+      - name: Build
+        run: dotnet build TailspinToys.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test TailspinToys.sln --configuration Release --no-build --verbosity normal
+
+      - name: Publish app
+        if: github.event_name == 'push'
+        run: dotnet publish src/TailspinToys.Web/TailspinToys.Web.csproj --configuration Release --output ./publish --no-build
+
+      - name: Upload artifact
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: webapp
+          path: ./publish
+
+  deploy_dev:
+    name: Deploy Dev
+    if: github.event_name == 'push'
+    needs: build_test
+    runs-on: ubuntu-latest
+    environment: development
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: webapp
+          path: ./publish
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ vars.AZURE_WEBAPP_NAME }}
+          package: ./publish
+
+  deploy_prod:
+    name: Deploy Prod
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: deploy_dev
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: webapp
+          path: ./publish
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ vars.AZURE_WEBAPP_NAME }}
+          package: ./publish
