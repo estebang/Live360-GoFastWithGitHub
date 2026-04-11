@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+          cache: true
+          cache-dependency-path: |
+            **/*.csproj
+            **/packages.lock.json
+            **/global.json
+
+      - name: Restore dependencies
+        run: dotnet restore TailspinToys.sln
+
+      - name: Build
+        run: dotnet build TailspinToys.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test TailspinToys.sln --configuration Release --no-build --verbosity normal
