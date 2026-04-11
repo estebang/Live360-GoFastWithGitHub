@@ -1,0 +1,70 @@
+name: Reusable .NET Deploy (AWS)
+
+on:
+  workflow_call:
+    inputs:
+      environment_name:
+        description: Target GitHub environment to deploy to
+        required: true
+        type: string
+
+jobs:
+  build-test-publish-deploy:
+    name: Build, Test, Publish, and Deploy
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment_name }}
+    timeout-minutes: 30
+
+    # OIDC requires id-token: write so aws-actions/configure-aws-credentials can exchange the GitHub token.
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 9 SDK with NuGet cache
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+          cache: true
+          cache-dependency-path: |
+            TailspinToys.sln
+            src/TailspinToys.Web/TailspinToys.Web.csproj
+            tests/TailspinToys.Web.Tests/TailspinToys.Web.Tests.csproj
+
+      # Restore and build once, then reuse outputs in test/publish for faster execution.
+      - name: Restore dependencies
+        run: dotnet restore TailspinToys.sln
+
+      - name: Build
+        run: dotnet build TailspinToys.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test TailspinToys.sln --configuration Release --no-build --verbosity normal
+
+      - name: Publish web app
+        run: dotnet publish src/TailspinToys.Web/TailspinToys.Web.csproj --configuration Release --no-build --output ./publish
+
+      - name: Package publish output as zip
+        run: cd ./publish && zip -r ../deploy.zip . && cd ..
+
+      - name: Configure AWS credentials with OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      # AWS_EB_APP_NAME and AWS_EB_ENV_NAME are read from the selected GitHub environment variables.
+      - name: Deploy to AWS Elastic Beanstalk
+        uses: einaregilsson/beanstalk-deploy@v22
+        with:
+          aws_access_key: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws_secret_key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          aws_session_token: ${{ env.AWS_SESSION_TOKEN }}
+          region: ${{ vars.AWS_REGION }}
+          application_name: ${{ vars.AWS_EB_APP_NAME }}
+          environment_name: ${{ vars.AWS_EB_ENV_NAME }}
+          version_label: ${{ github.sha }}
+          deployment_package: deploy.zip

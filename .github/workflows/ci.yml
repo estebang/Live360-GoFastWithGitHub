@@ -65,3 +65,26 @@ jobs:
     with:
       environment_name: prod
     secrets: inherit
+
+  # Continuous deployment to the AWS dev environment on every push.
+  deploy-dev-aws:
+    if: github.event_name == 'push' && github.ref != 'refs/heads/main'
+    uses: ./.github/workflows/reusable-dotnet-deploy-aws.yml
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      environment_name: dev
+    secrets: inherit
+
+  # Promotion to AWS prod only from main after AWS dev deployment succeeds.
+  deploy-prod-aws:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: deploy-dev-aws
+    uses: ./.github/workflows/reusable-dotnet-deploy-aws.yml
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      environment_name: prod
+    secrets: inherit
