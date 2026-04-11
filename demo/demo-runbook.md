@@ -210,6 +210,7 @@ Ensure we have:
 Make any required changes and open a pull request summarizing what changed.
 ```
 
+
 ## Expected Output
 - PR titled “Apply Tailspin DevOps Standards”
 
