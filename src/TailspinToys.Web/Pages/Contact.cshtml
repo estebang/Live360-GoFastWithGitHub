@@ -4,7 +4,62 @@
     Layout = "_Layout";
 }
 
-<h1>Contact</h1>
+<section class="hero">
+    <h1><i class="fas fa-envelope-open-text"></i> Contact</h1>
+    <p>Let's connect about the session, GitHub platform capabilities, and modern .NET delivery practices.</p>
+</section>
 
-<p>Esteban Garcia</p>
-<p>GitHub: <a href="https://github.com/estebang" target="_blank">https://github.com/estebang</a></p>
+<div style="display: grid; gap: 2rem; margin-bottom: 2rem;">
+    <div style="background: var(--card-background); border-radius: 20px; padding: 2.5rem; box-shadow: var(--shadow); position: relative; overflow: hidden;">
+        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 6px; background: linear-gradient(90deg, var(--primary-color), var(--secondary-color), var(--accent-color));"></div>
+
+        <div style="display: grid; grid-template-columns: 1fr auto; gap: 2rem; align-items: start;">
+            <div>
+                <h2 style="font-size: 2rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.75rem;">Esteban Garcia</h2>
+                <p style="font-size: 1.05rem; color: var(--text-secondary); margin-bottom: 1.75rem; max-width: 720px;">
+                    Thank you for joining this demo. If you want the slide deck, walkthrough assets, or help applying this pipeline pattern in your team, reach out directly.
+                </p>
+
+                <div style="display: grid; gap: 1rem;">
+                    <a href="mailto:abc@email.com" style="display: flex; align-items: center; gap: 0.75rem; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px; padding: 1rem; text-decoration: none; color: var(--text-primary); transition: transform 0.2s ease, box-shadow 0.2s ease;">
+                        <span style="background: var(--primary-color); color: white; width: 34px; height: 34px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-envelope"></i>
+                        </span>
+                        <span>
+                            <strong>Email</strong><br />
+                            abc@email.com
+                        </span>
+                    </a>
+
+                    <a href="https://www.linkedin.com/in/estebangarcia/" target="_blank" rel="noopener noreferrer" style="display: flex; align-items: center; gap: 0.75rem; background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 12px; padding: 1rem; text-decoration: none; color: var(--text-primary); transition: transform 0.2s ease, box-shadow 0.2s ease;">
+                        <span style="background: #0a66c2; color: white; width: 34px; height: 34px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700;">
+                            in
+                        </span>
+                        <span>
+                            <strong>LinkedIn</strong><br />
+                            View profile
+                        </span>
+                    </a>
+
+                    <a href="https://github.com/estebang" target="_blank" rel="noopener noreferrer" style="display: flex; align-items: center; gap: 0.75rem; background: #f9fafb; border: 1px solid var(--border-color); border-radius: 12px; padding: 1rem; text-decoration: none; color: var(--text-primary); transition: transform 0.2s ease, box-shadow 0.2s ease;">
+                        <span style="background: #24292f; color: white; width: 34px; height: 34px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;">
+                            <i class="fab fa-github"></i>
+                        </span>
+                        <span>
+                            <strong>GitHub</strong><br />
+                            github.com/estebang
+                        </span>
+                    </a>
+                </div>
+            </div>
+
+            <div style="min-width: 220px; text-align: center;">
+                <div style="background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: white; padding: 2rem 1.5rem; border-radius: 16px; box-shadow: var(--shadow);">
+                    <div style="font-size: 2.5rem; margin-bottom: 0.75rem;"><i class="fas fa-comments"></i></div>
+                    <div style="font-size: 1.1rem; font-weight: 700;">Stay Connected</div>
+                    <div style="opacity: 0.9; margin-top: 0.5rem; font-size: 0.95rem;">Open to speaking, workshops, and team enablement sessions.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
