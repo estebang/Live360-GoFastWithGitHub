@@ -37,6 +37,9 @@ jobs:
   deploy-dev:
     if: github.event_name == 'push'
     uses: ./.github/workflows/reusable-dotnet-deploy.yml
+    permissions:
+      contents: read
+      id-token: write
     with:
       environment_name: dev
     secrets: inherit
@@ -46,6 +49,9 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: deploy-dev
     uses: ./.github/workflows/reusable-dotnet-deploy.yml
+    permissions:
+      contents: read
+      id-token: write
     with:
       environment_name: prod
     secrets: inherit
