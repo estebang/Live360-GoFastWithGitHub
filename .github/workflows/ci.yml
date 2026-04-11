@@ -4,11 +4,21 @@ on:
   push:
   pull_request:
 
+# Default to least privilege for all jobs; elevate only where required.
+permissions:
+  contents: read
+
+# Cancel stale runs on feature branches while preserving main branch history.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   # Pull request validation: compile and test without deployment.
   ci:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
@@ -35,7 +45,7 @@ jobs:
 
   # Continuous deployment to the dev environment on every push.
   deploy-dev:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && github.ref != 'refs/heads/main'
     uses: ./.github/workflows/reusable-dotnet-deploy.yml
     permissions:
       contents: read
