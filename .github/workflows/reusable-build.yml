@@ -1,0 +1,146 @@
+name: Reusable Build Workflow
+
+on:
+  workflow_call:
+    inputs:
+      dotnet-version:
+        description: '.NET SDK version to use'
+        required: false
+        type: string
+        default: '9.0.x'
+      configuration:
+        description: 'Build configuration (Debug/Release)'
+        required: false
+        type: string
+        default: 'Release'
+      solution-path:
+        description: 'Path to solution file'
+        required: false
+        type: string
+        default: './TailspinToys.sln'
+      run-tests:
+        description: 'Whether to run tests'
+        required: false
+        type: boolean
+        default: true
+      publish-artifacts:
+        description: 'Whether to publish build artifacts'
+        required: false
+        type: boolean
+        default: true
+      artifact-name:
+        description: 'Name for the published artifact'
+        required: false
+        type: string
+        default: 'build-output'
+    outputs:
+      artifact-name:
+        description: 'Name of the uploaded artifact'
+        value: ${{ jobs.build.outputs.artifact-name }}
+      test-results:
+        description: 'Test results status'
+        value: ${{ jobs.build.outputs.test-status }}
+
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  build:
+    name: Build .NET Application
+    runs-on: ubuntu-latest
+    outputs:
+      artifact-name: ${{ inputs.artifact-name }}
+      test-status: ${{ steps.test.outcome }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+      
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+      
+      - name: Display build information
+        run: |
+          echo "🔧 Build Configuration:"
+          echo "  .NET Version: ${{ inputs.dotnet-version }}"
+          echo "  Configuration: ${{ inputs.configuration }}"
+          echo "  Solution: ${{ inputs.solution-path }}"
+          echo "  Run Tests: ${{ inputs.run-tests }}"
+          echo "  Publish Artifacts: ${{ inputs.publish-artifacts }}"
+      
+      - name: Restore NuGet packages
+        run: dotnet restore ${{ inputs.solution-path }}
+      
+      - name: Build solution
+        run: |
+          dotnet build ${{ inputs.solution-path }} \
+            --configuration ${{ inputs.configuration }} \
+            --no-restore \
+            /p:TreatWarningsAsErrors=false
+      
+      - name: Run unit tests
+        id: test
+        if: inputs.run-tests
+        run: |
+          dotnet test ${{ inputs.solution-path }} \
+            --configuration ${{ inputs.configuration }} \
+            --no-build \
+            --verbosity normal \
+            --logger "trx;LogFileName=test-results.trx" \
+            --collect:"XPlat Code Coverage" \
+            --results-directory ./TestResults
+      
+      - name: Upload test results
+        if: inputs.run-tests && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}-test-results
+          path: TestResults/**/*.trx
+          retention-days: 30
+      
+      - name: Upload coverage reports
+        if: inputs.run-tests && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}-coverage
+          path: TestResults/**/coverage.cobertura.xml
+          retention-days: 30
+      
+      - name: Publish application
+        if: inputs.publish-artifacts
+        run: |
+          dotnet publish ${{ inputs.solution-path }} \
+            --configuration ${{ inputs.configuration }} \
+            --output ./publish \
+            --no-build
+      
+      - name: Upload build artifacts
+        if: inputs.publish-artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ./publish
+          retention-days: 30
+      
+      - name: Build summary
+        if: always()
+        run: |
+          echo "## Build Summary 📦" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Configuration**: ${{ inputs.configuration }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tests Run**: ${{ inputs.run-tests }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Artifacts Published**: ${{ inputs.publish-artifacts }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Artifact Name**: ${{ inputs.artifact-name }}" >> $GITHUB_STEP_SUMMARY
