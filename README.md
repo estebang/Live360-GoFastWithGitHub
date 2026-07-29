@@ -37,6 +37,9 @@ TailspinToys/
 │       └── Program.cs              # Application entry point
 ├── tests/
 │   └── TailspinToys.Web.Tests/     # Unit tests
+├── demo/
+│   ├── demo-runbook.md             # Conference demo walkthrough
+│   └── VSW04 - Take Action and Go fast with GitHub - Esteban Garcia.pptx  # Orlando Code Camp presentation
 └── TailspinToys.sln               # Solution file
 ```
 
@@ -203,13 +206,22 @@ The application uses standard ASP.NET Core configuration:
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
+## 📚 Conference Materials
+
+This application was built as a demonstration for **Orlando Code Camp 2026**:
+
+- **📋 Demo Walkthrough**: [`demo/demo-runbook.md`](demo/demo-runbook.md) - Step-by-step conference demo guide
+- **📊 Presentation Slides**: [`demo/VSW04 - Take Action and Go fast with GitHub - Esteban Garcia.pptx`](demo/VSW04%20-%20Take%20Action%20and%20Go%20fast%20with%20GitHub%20-%20Esteban%20Garcia.pptx) - Complete session presentation
+- **Session Code**: VSW04 - "Take Action: Go Fast with GitHub"
+
 ## 🙋‍♂️ Support
 
 For questions or issues:
 - Create an issue in this repository
 - Check existing documentation
 - Review test cases for usage examples
+- Reference the conference materials in the `demo/` folder
 
 ---
 
-*Built with ❤️ using ASP.NET Core*
+*Built with ❤️ using ASP.NET Core for Orlando Code Camp 2026*
