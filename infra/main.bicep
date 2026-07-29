@@ -17,8 +17,10 @@ param appName string = 'tailspintoys'
 // Environment name (prod, staging, dev, etc.)
 param environment string = 'prod'
 
-// SKU for App Service Plan (B1, B2, S1, S2, P1V2, etc.)
-param appServiceSku string = 'B2'
+// SKU for App Service Plan
+// NOTE: Deployment slots require S1+ (Standard) or Premium tiers
+// B1/B2 (Basic) tiers do NOT support slots
+param appServiceSku string = 'S1'
 
 // ============================================================================
 // VARIABLES - Derived names for consistent resource naming
