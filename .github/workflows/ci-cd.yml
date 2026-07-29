@@ -21,6 +21,16 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Setup Azure CLI
+      uses: azure/setup-azure-cli@v3
+      with:
+        version: latest
+
+    - name: Validate Bicep Templates
+      run: |
+        az bicep build-params --file infra/main.bicepparam
+        echo "✅ Bicep templates validated successfully"
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
