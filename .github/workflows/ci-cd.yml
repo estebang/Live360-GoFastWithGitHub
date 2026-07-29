@@ -8,9 +8,10 @@ on:
 
 env:
   DOTNET_VERSION: '9.0.x'
-  AZURE_WEBAPP_NAME: 'tailspintoys'  # Change to your Azure App Service name
+  AZURE_WEBAPP_NAME: 'tailspintoys-prod-ahbfjlfrhjutk'
+  AZURE_WEBAPP_STAGING_NAME: 'tailspintoys-prod-ahbfjlfrhjutk'  # Same app, different slot
   AZURE_WEBAPP_PACKAGE_PATH: './publish'
-  AZURE_RESOURCE_GROUP: 'your-resource-group'  # Change to your Azure resource group
+  AZURE_RESOURCE_GROUP: 'tailspintoys-rg'
 
 jobs:
   build-and-test:
@@ -73,7 +74,8 @@ jobs:
     - name: Deploy to Azure Web App (Staging)
       uses: azure/webapps-deploy@v2
       with:
-        app-name: ${{ env.AZURE_WEBAPP_NAME }}-staging
+        app-name: ${{ env.AZURE_WEBAPP_STAGING_NAME }}
+        slot-name: 'staging'
         package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
 
   deploy-production:
