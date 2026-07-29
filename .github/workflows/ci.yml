@@ -1,0 +1,37 @@
+name: CI/CD - Build & Deploy to Azure
+
+on:
+  push:
+  pull_request:
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  AZURE_WEBAPP_NAME: 'tailspintoys'  # Change to your Azure App Service name
+  AZURE_WEBAPP_PACKAGE_PATH: './publish'
+  AZURE_RESOURCE_GROUP: 'your-resource-group'  # Change to your Azure resource group
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    name: Build & Test
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore dependencies
+      run: dotnet restore
+      working-directory: ./src/TailspinToys.Web
+
+    - name: Build
+      run: dotnet build --configuration Release --no-restore
+      working-directory: ./src/TailspinToys.Web
+
+    - name: Run tests
+      run: dotnet test --configuration Release --no-build --verbosity normal
+      working-directory: ./tests/TailspinToys.Web.Tests
+
